@@ -11,7 +11,7 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { requireAuth, requireDb } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
 import type { AccountStatus, Role } from '@/types';
@@ -115,8 +115,33 @@ export async function signOutMember(): Promise<void> {
  * আগে আমাদের নিজের ডিজাইন করা ইমেইল পাঠানোর চেষ্টা করে (Base44 ফাংশন, যা Firebase
  * Admin দিয়ে আসল রিসেট লিংক তৈরি করে)। ফাংশনটি না পেলে বা ব্যর্থ হলে Firebase-এর
  * নিজের `sendPasswordResetEmail`-এ ফিরে যায়, তাই রিসেট ফ্লো কখনো ভাঙে না।
+ *
+ * বিনামূল্যের পথ: `sendResetEmail` না পারলে (যেমন প্ল্যাটফর্মের ইন্টিগ্রেশন
+ * ক্রেডিট শেষ) রিকোয়েস্টটা Firestore-এর `resetRequests`-এ জমা হয়, আর
+ * GitHub Actions-এর `reset-mailer` জব কয়েক মিনিটের মধ্যে আসল Firebase লিংক
+ * বানিয়ে সংগঠনের Gmail থেকে মেইলটা পাঠায়। কোনো পেইড সার্ভিস লাগে না।
  */
 const RESET_ENDPOINT = 'https://solas-5609a435.base44.app/functions/sendResetEmail';
+const RESET_QUEUE = 'resetRequests';
+
+/**
+ * রিসেট রিকোয়েস্ট কিউতে জমা দেয়; সফল হলে true।
+ * ইমেইল ঠিকানাটাই কলাম, তাই সার্ভারে থাকা worker সহজে খুঁজে পায়।
+ */
+async function queueResetRequest(email: string): Promise<boolean> {
+  try {
+    const database = requireDb();
+    await addDoc(collection(database, RESET_QUEUE), {
+      email: email.trim().toLowerCase(),
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      source: 'website',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const target = email.trim();
@@ -144,7 +169,9 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }
 
   if (branded) return;
+  if (await queueResetRequest(target)) return;
 
+  // কিউও না পারলে শেষ ভরসা: Firebase-এর নিজের ডিফল্ট মেইল
   const auth = requireAuth();
   await sendPasswordResetEmail(auth, target);
 }

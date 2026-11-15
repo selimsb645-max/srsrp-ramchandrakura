@@ -179,6 +179,25 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // ---------- password reset queue (public create, server-only read) ----------
+    // The website drops a validated request here; GitHub Actions turns it into a real
+    // Firebase reset link. Nobody can read other people's requests, and only the
+    // Admin SDK (which bypasses rules) can mark them as sent.
+    match /resetRequests/{requestId} {
+      allow create: if request.resource.data.email is string
+                    && request.resource.data.email.size() >= 6
+                    && request.resource.data.email.size() <= 160
+                    && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$')
+                    && request.resource.data.status == 'pending'
+                    && 'createdAt' in request.resource.data;
+      allow read, update, delete: if false;
+    }
+
+    // per-address throttle bookkeeping, written only by the mailer
+    match /resetThrottle/{docId} {
+      allow read, write: if false;
+    }
+
     // ---------- everything else is closed ----------
     match /{document=**} {
       allow read, write: if false;

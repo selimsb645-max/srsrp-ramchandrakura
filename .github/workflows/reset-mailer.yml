@@ -1,0 +1,37 @@
+name: Password reset mailer
+
+# Free path for the branded reset email: the website drops a request into
+# Firestore `resetRequests`, this job turns it into a real Firebase reset link
+# and sends it from the organization Gmail account. No paid service involved.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: reset-mailer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet --disable-pip-version-check requests google-auth
+
+      - name: Send pending reset mails
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          FIREBASE_PROJECT_ID: coop-save-w1y1f8
+          MAIL_FROM: selimsb645@gmail.com
+        run: python scripts/reset-mailer.py
