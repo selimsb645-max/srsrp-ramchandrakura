@@ -109,23 +109,42 @@ export async function signOutMember(): Promise<void> {
 }
 
 /**
- * Password reset email.
+ * Password reset email — সবুজ ডিজাইন, আসল Firebase লিংক।
  *
- * আগে আমাদের নিজের ডিজাইন করা ইমেইল পাঠানোর চেষ্টা করে (Base44 ফাংশন, যা Firebase
- * Admin দিয়ে আসল রিসেট লিংক তৈরি করে)। ফাংশনটি না পেলে বা ব্যর্থ হলে Firebase-এর
- * Firebase-এর ডিফল্ট মেইল আর পাঠানো হয় না, কারণ ওতে সংগঠনের নাম বসানো যায় না।
+ * তিনটি ধাপ, ক্রমে চেষ্টা করা হয়:
+ *  ১. Base44 ফাংশন `sendResetEmail` — সংগঠনের ডিজাইনেই সাথে সাথে মেইল যায়।
+ *     প্ল্যাটফর্মের ইন্টিগ্রেশন ক্রেডিট শেষ থাকলে এটি ৪০২ দেয়।
+ *  ২. Cloudflare Worker — কোনো সার্ভার-সাইড আইডি ছাড়াই সাথে সাথে একই মেইল পাঠায়।
+ *  ৩. Firestore `resetRequests` কিউ — GitHub Actions কয়েক মিনিটের মধ্যে পাঠায়।
  *
- * বিনামূল্যের পথ: `sendResetEmail` না পারলে (যেমন প্ল্যাটফর্মের ইন্টিগ্রেশন
- * ক্রেডিট শেষ) রিকোয়েস্টটা Firestore-এর `resetRequests`-এ জমা হয়, আর
- * GitHub Actions-এর `reset-mailer` জব কয়েক মিনিটের মধ্যে আসল Firebase লিংক
- * বানিয়ে সংগঠনের Gmail থেকে মেইলটা পাঠায়। কোনো পেইড সার্ভিস লাগে না।
+ * Firebase-এর নিজের ডিফল্ট মেইল আর কখনো পাঠানো হয় না: ওতে "NextAI Vision"
+ * লেখা বদলানো যায় না, তাই সদস্যরা ভুল নাম দেখত।
  */
 const RESET_ENDPOINT = 'https://solas-5609a435.base44.app/functions/sendResetEmail';
+const RESET_WORKER = 'https://srsrp-reset-mailer.selimsb645.workers.dev';
 const RESET_QUEUE = 'resetRequests';
+
+async function postJson(url: string, payload: unknown, timeoutMs: number): Promise<{ ok?: boolean } | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json().catch(() => null)) as { ok?: boolean } | null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * রিসেট রিকোয়েস্ট কিউতে জমা দেয়; সফল হলে true।
- * ইমেইল ঠিকানাটাই কলাম, তাই সার্ভারে থাকা worker সহজে খুঁজে পায়।
  */
 async function queueResetRequest(email: string): Promise<boolean> {
   try {
@@ -144,33 +163,17 @@ async function queueResetRequest(email: string): Promise<boolean> {
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const target = email.trim();
-  let branded = false;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-    try {
-      const response = await fetch(RESET_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: target }),
-        signal: controller.signal,
-      });
-      if (response.ok) {
-        const data = (await response.json().catch(() => null)) as { ok?: boolean } | null;
-        branded = data?.ok === true;
-      }
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    branded = false;
-  }
+  // ১. Base44 ফাংশন (ক্রেডিট থাকলে সবচেয়ে দ্রুত)
+  const viaFunction = await postJson(RESET_ENDPOINT, { email: target }, 12000);
+  if (viaFunction?.ok === true) return;
 
-  if (branded) return;
+  // ২. Cloudflare Worker (তাৎক্ষণিক, প্ল্যাটফর্ম ক্রেডিট লাগে না)
+  const viaWorker = await postJson(RESET_WORKER, { email: target }, 25000);
+  if (viaWorker?.ok === true) return;
+
+  // ৩. কিউ — GitHub Actions কয়েক মিনিটের মধ্যে পাঠাবে
   if (await queueResetRequest(target)) return;
 
-  // Firebase-এর নিজের ডিফল্ট মেইল আর কখনো পাঠানো হবে না: ওতে "NextAI Vision"
-  // লেখা যায় না। দুটো পথই না পারলে সৎভাবে এরর দেখাই।
   throw new Error('RESET_UNAVAILABLE');
 }

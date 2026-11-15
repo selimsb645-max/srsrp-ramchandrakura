@@ -164,7 +164,7 @@ export const bn: Dict = {
   'auth.noAccount': 'অ্যাকাউন্ট এখনো নেই? অনুমোদিত সদস্যরা কমিটি থেকে লগইন তথ্য পাবেন।',
   'auth.resetTitle': 'পাসওয়ার্ড রিসেট',
   'auth.resetLead': 'নিবন্ধিত ইমেইল দিন, রিসেট লিংক পাঠানো হবে।',
-  'auth.resetSent': 'অনুরোধ পেয়েছি। সবুজ ডিজাইনের রিসেট লিংকটি আপনার ইমেইলে যাচ্ছে — ৫ মিনিট পর্যন্ত লাগতে পারে। ইনবক্সে না দেখলে স্প্যাম ফোল্ডারও দেখুন।',
+  'auth.resetSent': 'সবুজ ডিজাইনের রিসেট লিংকটি আপনার ইমেইলে পাঠানো হয়েছে। না দেখলে স্প্যাম ফোল্ডার দেখুন; কখনো কয়েক মিনিট দেরি হতে পারে।',
   'auth.resetError': 'এখনই রিসেট মেইল পাঠানো যায়নি। একটু পরে আবার চেষ্টা করুন, অথবা অ্যাডমিনের সঙ্গে যোগাযোগ করুন।',
   'auth.notConfigured': 'ব্যাকএন্ড সংযোগ বাকি',
   'auth.notConfiguredBody':
@@ -423,7 +423,7 @@ export const en: Dict = {
   'auth.noAccount': 'No account yet? Approved members receive login details from the committee.',
   'auth.resetTitle': 'Reset password',
   'auth.resetLead': 'Enter your registered email and we will send a reset link.',
-  'auth.resetSent': 'Request received. The reset link is on its way to your email, which can take up to 5 minutes. Check spam if you do not see it.',
+  'auth.resetSent': 'The reset link has been sent to your email. Check spam if you do not see it; it can sometimes take a few minutes.',
   'auth.resetError': 'The reset email could not be sent right now. Please try again shortly.',
   'auth.notConfigured': 'Backend not connected',
   'auth.notConfiguredBody':
