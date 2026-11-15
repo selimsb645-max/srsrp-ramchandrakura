@@ -109,7 +109,42 @@ export async function signOutMember(): Promise<void> {
   await signOut(auth);
 }
 
+/**
+ * Password reset email.
+ *
+ * আগে আমাদের নিজের ডিজাইন করা ইমেইল পাঠানোর চেষ্টা করে (Base44 ফাংশন, যা Firebase
+ * Admin দিয়ে আসল রিসেট লিংক তৈরি করে)। ফাংশনটি না পেলে বা ব্যর্থ হলে Firebase-এর
+ * নিজের `sendPasswordResetEmail`-এ ফিরে যায়, তাই রিসেট ফ্লো কখনো ভাঙে না।
+ */
+const RESET_ENDPOINT = 'https://solas-5609a435.base44.app/functions/sendResetEmail';
+
 export async function requestPasswordReset(email: string): Promise<void> {
+  const target = email.trim();
+  let branded = false;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(RESET_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: target }),
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        const data = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+        branded = data?.ok === true;
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    branded = false;
+  }
+
+  if (branded) return;
+
   const auth = requireAuth();
-  await sendPasswordResetEmail(auth, email.trim());
+  await sendPasswordResetEmail(auth, target);
 }
