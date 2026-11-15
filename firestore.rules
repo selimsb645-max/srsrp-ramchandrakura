@@ -1,111 +1,185 @@
 rules_version = '2';
 
+// ============================================================================
 // শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — ৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা
-// Firestore Security Rules. These rules are the real gate; the UI checks are convenience only.
+// Firestore Security Rules — deny by default, server-enforced role checks.
 //
-// Data model summary (see docs/SCHEMA.md):
-//   members/{memberId}                 public-safe profile (no phone / email)
-//   members/{memberId}/private/contact { phone, email, guardianName } — owner/admin only
-//   committee, activities, events, notices, gallery   published flag controls public read
-//   contactMessages, joinRequests                     public create, admin read
-//   settings/app                                      public read, admin write
+// Roles: super_admin > admin > editor > member
+//   member      : own profile + own private contact only
+//   editor      : publish/edit content (notices, events, activities, gallery, committees)
+//   admin       : editor + member records, applications, messages, audit log
+//   super_admin : admin + role changes + deletes
 //
-// Admin = a user whose ID token carries the `admin` custom claim, OR whose
-// members/{uid} document has role == 'admin'.
+// The role is read from users/{uid}.role — never from anything the client sends.
+// Cloud Functions are not used (Spark plan), so these rules ARE the enforcement layer.
+// ============================================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
+    // ---------- helpers ----------
+    function signedIn() {
       return request.auth != null;
     }
 
+    function myData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return signedIn() && myData().status == 'active';
+    }
+
+    function isStaff() {
+      return isActive() && myData().role in ['super_admin', 'admin', 'editor'];
+    }
+
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        (
-          exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin'
-        )
-      );
+      return isActive() && myData().role in ['super_admin', 'admin'];
     }
 
-    function isOwner(memberId) {
-      return isSignedIn() && request.auth.uid == memberId;
+    function isSuperAdmin() {
+      return isActive() && myData().role == 'super_admin';
     }
 
-    // ---------- public content collections ----------
-    match /committee/{docId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
+    function changed(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
-    match /activities/{docId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
+    function isPublishedRead() {
+      return resource.data.published == true;
     }
 
-    match /events/{docId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
-    }
+    // ---------- users ----------
+    match /users/{uid} {
+      // own account, staff/administration, or a published public directory entry
+      allow read: if (signedIn() && request.auth.uid == uid)
+                  || isAdmin()
+                  || (isPublishedRead() && resource.data.role == 'member');
 
-    match /notices/{docId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
-    }
+      // self signup only: role "member", status "pending", never published
+      allow create: if signedIn()
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == uid
+                    && request.resource.data.role == 'member'
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.published == false;
 
-    match /gallery/{docId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
-    }
+      allow update: if
+        // super admin: anything except rewriting the identity
+        (isSuperAdmin() && request.resource.data.uid == resource.data.uid)
+        // admin: manage members, but never promote/demote
+        || (isAdmin()
+            && request.resource.data.uid == resource.data.uid
+            && !changed(['role', 'uid', 'createdAt']))
+        // member: own profile fields only
+        || (signedIn()
+            && request.auth.uid == uid
+            && !changed(['role', 'status', 'published', 'memberCode', 'approvedBy', 'approvedAt', 'uid', 'createdAt']));
 
-    // ---------- members ----------
-    match /members/{memberId} {
-      // Public visitors only ever see published, public-safe profiles.
-      allow read: if resource.data.published == true || isAdmin() || isOwner(memberId);
+      allow delete: if isSuperAdmin();
 
-      allow create, delete: if isAdmin();
-
-      // An owner may edit their own contact details, but never their status or role.
-      allow update: if isAdmin() ||
-        (
-          isOwner(memberId) &&
-          request.resource.data.role == resource.data.role &&
-          request.resource.data.status == resource.data.status &&
-          request.resource.data.uid == resource.data.uid &&
-          request.resource.data.memberCode == resource.data.memberCode
-        );
-
-      // Private subcollection: phone numbers, emails, guardian details, minors' data.
+      // private contact data (phone, email, guardian, date of birth)
       match /private/{privateDoc} {
-        allow read, write: if isAdmin() || isOwner(memberId);
+        allow read, write: if (signedIn() && request.auth.uid == uid) || isAdmin();
       }
     }
 
-    // ---------- forms ----------
+    // ---------- membership applications ----------
+    match /membershipApplications/{applicationId} {
+      // public form: validated, always pending, never pre-approved
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.fullName is string
+                    && request.resource.data.fullName.size() >= 2
+                    && request.resource.data.fullName.size() <= 120
+                    && request.resource.data.phone is string
+                    && request.resource.data.phone.size() >= 6
+                    && request.resource.data.phone.size() <= 20
+                    && (!('uid' in request.resource.data)
+                        || (signedIn() && request.resource.data.uid == request.auth.uid))
+                    && (!('motivation' in request.resource.data)
+                        || request.resource.data.motivation.size() <= 2000);
+
+      allow read: if isAdmin();
+
+      // review only: the applicant's own statements stay immutable
+      allow update: if isAdmin()
+                    && !changed(['fullName', 'phone', 'uid', 'createdAt', 'email']);
+
+      allow delete: if isSuperAdmin();
+    }
+
+    // ---------- organizational content (publish = editor+) ----------
+    match /committees/{docId} {
+      allow read: if isPublishedRead() || isStaff();
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      // editors may edit any organizational content, but authorship cannot be rewritten
+      allow update: if isStaff() && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    match /notices/{docId} {
+      allow read: if isPublishedRead() || isStaff();
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      // editors may edit any organizational content, but authorship cannot be rewritten
+      allow update: if isStaff() && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    match /events/{docId} {
+      allow read: if isPublishedRead() || isStaff();
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      // editors may edit any organizational content, but authorship cannot be rewritten
+      allow update: if isStaff() && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    match /activities/{docId} {
+      allow read: if isPublishedRead() || isStaff();
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      // editors may edit any organizational content, but authorship cannot be rewritten
+      allow update: if isStaff() && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    match /gallery/{docId} {
+      allow read: if isPublishedRead() || isStaff();
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      // editors may edit any organizational content, but authorship cannot be rewritten
+      allow update: if isStaff() && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- contact form ----------
     match /contactMessages/{docId} {
-      allow create: if request.resource.data.keys().hasAll(['name', 'subject', 'message'])
+      allow create: if request.resource.data.name is string
+                    && request.resource.data.name.size() >= 2
+                    && request.resource.data.name.size() <= 120
+                    && request.resource.data.subject is string
+                    && request.resource.data.subject.size() <= 200
                     && request.resource.data.message is string
+                    && request.resource.data.message.size() >= 2
                     && request.resource.data.message.size() <= 4000
                     && request.resource.data.handled == false;
-      allow read, update, delete: if isAdmin();
+
+      allow read, update: if isAdmin();
+      allow delete: if isSuperAdmin();
     }
 
-    match /joinRequests/{docId} {
-      allow create: if request.resource.data.keys().hasAll(['nameBn', 'phone'])
-                    && request.resource.data.phone is string
-                    && request.resource.data.status == 'pending';
-      allow read, update, delete: if isAdmin();
+    // ---------- audit trail (append-only) ----------
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isStaff() && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
     }
 
-    // ---------- misc ----------
+    // ---------- settings ----------
     match /settings/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
-    // Everything else is closed.
+    // ---------- everything else is closed ----------
     match /{document=**} {
       allow read, write: if false;
     }

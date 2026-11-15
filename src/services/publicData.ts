@@ -1,15 +1,15 @@
 /**
  * Read helpers for public pages.
  *
- * Design note: public lists are fetched with a single orderBy and filtered in memory
- * for `published !== false`. That keeps the site working without composite indexes.
- * When the registers grow, add `where('published','==',true)` plus the matching
- * composite index in firestore.indexes.json.
+ * Rules require queries to be constrained to `published == true`, so each loader adds
+ * that where-clause (the matching composite indexes live in firestore.indexes.json).
+ * Nothing personal is ever read here: contact details live in `users/{uid}/private/contact`,
+ * which these loaders never touch.
  */
-import { collection, getDocs, limit, orderBy, query, type Firestore } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query, where, type Firestore } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
-import type { Activity, CommitteeMember, EventItem, GalleryItem, Member, Notice } from '@/types';
+import type { Activity, CommitteeMember, EventItem, GalleryItem, Notice, UserProfile } from '@/types';
 
 export interface ListResult<T> {
   data: T[];
@@ -17,16 +17,11 @@ export interface ListResult<T> {
   error: string | null;
 }
 
-function isPublic(record: { published?: boolean }): boolean {
-  return record.published !== false;
-}
-
 function toDate(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value === 'object' && value !== null && 'toDate' in value) {
     try {
-      // Firestore Timestamp
       return (value as { toDate: () => Date }).toDate();
     } catch {
       return null;
@@ -40,87 +35,83 @@ function toDate(value: unknown): Date | null {
 }
 
 function normalize<T extends Record<string, unknown>>(id: string, raw: T) {
-  return {
-    ...raw,
-    id,
-    createdAt: toDate(raw.createdAt),
-    updatedAt: toDate(raw.updatedAt),
-  };
+  return { ...raw, id, createdAt: toDate(raw.createdAt), updatedAt: toDate(raw.updatedAt) };
 }
 
-async function fetchList<T extends Record<string, unknown>>(
+async function fetchPublished<T extends Record<string, unknown>>(
   firestore: Firestore,
   name: string,
   orderField: string,
   max = 60,
 ): Promise<T[]> {
-  const snapshot = await getDocs(query(collection(firestore, name), orderBy(orderField, 'desc'), limit(max)));
-  return snapshot.docs
-    .map((doc) => normalize(doc.id, doc.data() as T))
-    .filter((record) => isPublic(record as { published?: boolean })) as T[];
+  const snapshot = await getDocs(
+    query(
+      collection(firestore, name),
+      where('published', '==', true),
+      orderBy(orderField, 'desc'),
+      limit(max),
+    ),
+  );
+  return snapshot.docs.map((docSnap) => normalize(docSnap.id, docSnap.data() as T)) as T[];
 }
 
-export async function getCommittee(): Promise<ListResult<CommitteeMember>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    const data = await fetchList<CommitteeMember & Record<string, unknown>>(db, COLLECTIONS.committee, 'order', 100);
-    data.sort((a, b) => a.order - b.order);
-    return { data: data as CommitteeMember[], configured: true, error: null };
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+function wrap<T>(loader: () => Promise<T[]>): Promise<ListResult<T>> {
+  if (!isFirebaseConfigured || !db) return Promise.resolve({ data: [], configured: false, error: null });
+  return loader()
+    .then((data): ListResult<T> => ({ data, configured: true, error: null }))
+    .catch((error: Error): ListResult<T> => ({ data: [], configured: true, error: error.message }));
 }
 
-export async function getMembers(): Promise<ListResult<Member>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    const data = await fetchList<Member & Record<string, unknown>>(db, COLLECTIONS.members, 'nameBn', 200);
-    // Public member view: never expose contact data or minors' details.
-    const safe = data.map((member) => ({
-      ...member,
-      phone: undefined,
-      email: undefined,
-      guardianName: undefined,
-      dateOfBirth: member.isMinor ? undefined : member.dateOfBirth,
-    }));
-    return { data: safe as Member[], configured: true, error: null };
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+export function getCommittee(): Promise<ListResult<CommitteeMember>> {
+  return wrap(async () => {
+    const data = await fetchPublished<CommitteeMember & Record<string, unknown>>(
+      db!,
+      COLLECTIONS.committees,
+      'order',
+      100,
+    );
+    return (data as CommitteeMember[]).sort((a, b) => a.order - b.order);
+  });
 }
 
-export async function getActivities(): Promise<ListResult<Activity>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    return { data: await fetchList<Activity & Record<string, unknown>>(db, COLLECTIONS.activities, 'date'), configured: true, error: null } as ListResult<Activity>;
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+/**
+ * Public member directory — published accounts only, name/ward/village only.
+ * Reads the `users` collection with the constraint the rules expect.
+ */
+export function getMembers(): Promise<ListResult<UserProfile>> {
+  return wrap(async () => {
+    const snapshot = await getDocs(
+      query(
+        collection(db!, COLLECTIONS.users),
+        where('published', '==', true),
+        orderBy('nameBn', 'asc'),
+        limit(300),
+      ),
+    );
+    return snapshot.docs.map((docSnap) => {
+      const raw = docSnap.data() as UserProfile;
+      return {
+        ...raw,
+        id: docSnap.id,
+        phone: undefined,
+        email: undefined,
+      } as unknown as UserProfile;
+    });
+  });
 }
 
-export async function getEvents(): Promise<ListResult<EventItem>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    return { data: await fetchList<EventItem & Record<string, unknown>>(db, COLLECTIONS.events, 'startAt'), configured: true, error: null } as ListResult<EventItem>;
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+export function getActivities(): Promise<ListResult<Activity>> {
+  return wrap(() => fetchPublished<Activity & Record<string, unknown>>(db!, COLLECTIONS.activities, 'date'));
 }
 
-export async function getNotices(): Promise<ListResult<Notice>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    return { data: await fetchList<Notice & Record<string, unknown>>(db, COLLECTIONS.notices, 'date'), configured: true, error: null } as ListResult<Notice>;
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+export function getEvents(): Promise<ListResult<EventItem>> {
+  return wrap(() => fetchPublished<EventItem & Record<string, unknown>>(db!, COLLECTIONS.events, 'startAt'));
 }
 
-export async function getGallery(): Promise<ListResult<GalleryItem>> {
-  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
-  try {
-    return { data: await fetchList<GalleryItem & Record<string, unknown>>(db, COLLECTIONS.gallery, 'createdAt'), configured: true, error: null } as ListResult<GalleryItem>;
-  } catch (error) {
-    return { data: [], configured: true, error: (error as Error).message };
-  }
+export function getNotices(): Promise<ListResult<Notice>> {
+  return wrap(() => fetchPublished<Notice & Record<string, unknown>>(db!, COLLECTIONS.notices, 'date'));
+}
+
+export function getGallery(): Promise<ListResult<GalleryItem>> {
+  return wrap(() => fetchPublished<GalleryItem & Record<string, unknown>>(db!, COLLECTIONS.gallery, 'createdAt'));
 }

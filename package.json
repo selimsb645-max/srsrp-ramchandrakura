@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "grant-role": "node scripts/grant-role.mjs"
   },
   "dependencies": {
     "firebase": "^10.14.1",

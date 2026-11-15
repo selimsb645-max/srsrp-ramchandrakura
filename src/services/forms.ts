@@ -1,32 +1,20 @@
-/** Write helpers used by public forms and the member portal. */
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+/** Write helpers used by the public contact form and the membership form. */
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { requireDb } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
-import type { ContactMessage, JoinRequest } from '@/types';
+import type { ContactMessage } from '@/types';
 
-export async function submitContactMessage(input: Omit<ContactMessage, 'id' | 'createdAt' | 'handled'>) {
+export async function submitContactMessage(
+  input: Omit<ContactMessage, 'id' | 'createdAt' | 'handled'>,
+): Promise<void> {
   const firestore = requireDb();
-  await addDoc(collection(firestore, COLLECTIONS.messages), {
-    ...input,
+  await addDoc(collection(firestore, COLLECTIONS.contactMessages), {
+    name: input.name.trim(),
+    email: input.email ?? '',
+    phone: input.phone ?? '',
+    subject: input.subject.trim(),
+    message: input.message.trim(),
     handled: false,
     createdAt: serverTimestamp(),
-  });
-}
-
-export async function submitJoinRequest(input: Omit<JoinRequest, 'id' | 'createdAt' | 'status'>) {
-  const firestore = requireDb();
-  await addDoc(collection(firestore, COLLECTIONS.joinRequests), {
-    ...input,
-    status: 'pending',
-    createdAt: serverTimestamp(),
-  });
-}
-
-export async function updateMyProfile(uid: string, memberDocId: string, patch: Record<string, unknown>) {
-  const firestore = requireDb();
-  await updateDoc(doc(firestore, COLLECTIONS.members, memberDocId), {
-    ...patch,
-    uid,
-    updatedAt: serverTimestamp(),
   });
 }

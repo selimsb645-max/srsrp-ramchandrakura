@@ -1,112 +1,54 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
 import { getCommittee } from '@/services/publicData';
-import {
-  adminGetActivities,
-  adminGetMembers,
-  adminGetMessages,
-  adminGetNotices,
-  adminGetRequests,
-} from '@/services/adminData';
+import { adminGetActivities, adminGetAuditLogs, adminGetEvents, adminGetMessages, adminGetNotices } from '@/services/adminData';
+import { listAllUsers, setUserRole, setUserStatus } from '@/services/userService';
+import { listApplications, reviewApplication } from '@/services/applicationService';
 import { Badge } from '@/components/ui/Badge';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
 import { StatGrid } from '@/components/shared/StatGrid';
-import { Link } from 'react-router-dom';
+import { AdminTable } from './AdminTable';
+import type { AccountStatus, Role, UserProfile } from '@/types';
 
-/** Small read-only table wrapper shared by the admin screens. */
-function TableShell({
-  title,
-  description,
-  headers,
-  rows,
-  loading,
-  error,
-}: {
-  title: string;
-  description?: string;
-  headers: string[];
-  rows: (string | JSX.Element)[][];
-  loading: boolean;
-  error: string | null;
-}) {
-  const { t } = useI18n();
-  return (
-    <section className="card overflow-hidden">
-      <div className="border-b border-slate-100 px-5 py-4">
-        <h2 className="font-display text-base font-bold text-brand-950">{title}</h2>
-        {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
-      </div>
-      {loading ? (
-        <div className="space-y-2 p-5">
-          {[0, 1, 2].map((key) => (
-            <div key={key} className="skeleton h-9 w-full" />
-          ))}
-        </div>
-      ) : error ? (
-        <div className="p-5 text-sm text-rose-600">{error}</div>
-      ) : rows.length === 0 ? (
-        <div className="p-5">
-          <EmptyState title={t('common.empty')} />
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                {headers.map((header) => (
-                  <th key={header} className="px-4 py-2.5 font-semibold">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((row, index) => (
-                <tr key={index} className="hover:bg-slate-50/70">
-                  {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} className="px-4 py-2.5 text-slate-700">
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
+const ROLE_OPTIONS: Role[] = ['member', 'editor', 'admin', 'super_admin'];
+const STATUS_TONES: Record<AccountStatus, 'green' | 'amber' | 'rose'> = {
+  active: 'green',
+  pending: 'amber',
+  suspended: 'rose',
+};
 
 export function AdminOverview() {
-  const { t, lang } = useI18n();
-  const members = useAsyncList(adminGetMembers);
+  const { t } = useI18n();
+  const users = useAsyncList(listAllUsers);
+  const applications = useAsyncList(listApplications);
   const notices = useAsyncList(adminGetNotices);
   const activities = useAsyncList(adminGetActivities);
   const messages = useAsyncList(adminGetMessages);
-  const requests = useAsyncList(adminGetRequests);
   const committee = useAsyncList(getCommittee);
 
-  const pendingRequests = requests.data.filter((request) => request.status === 'pending').length;
+  const pending = applications.data.filter((application) => application.status === 'pending').length;
   const openMessages = messages.data.filter((message) => !message.handled).length;
 
   return (
     <div className="space-y-6">
       <StatGrid
         items={[
-          { label: t('stats.members'), value: members.data.length },
+          { label: t('stats.members'), value: users.data.length },
           { label: t('stats.activities'), value: activities.data.length },
           { label: t('stats.notices'), value: notices.data.length },
-          { label: t('stats.events'), value: committee.data.length },
+          { label: t('admin.tab.committee'), value: committee.data.length },
         ]}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Link to="/admin/requests" className="card flex items-center justify-between p-5 hover:shadow-lg">
+        <Link to="/admin/applications" className="card flex items-center justify-between p-5 hover:shadow-lg">
           <div>
             <p className="text-sm font-semibold text-slate-500">{t('admin.pendingRequests')}</p>
-            <p className="mt-1 font-display text-2xl font-bold text-brand-900">{pendingRequests}</p>
+            <p className="mt-1 font-display text-2xl font-bold text-brand-900">{pending}</p>
           </div>
           <span className="text-brand-700">→</span>
         </Link>
@@ -119,33 +61,165 @@ export function AdminOverview() {
         </Link>
       </div>
 
-      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        {t('admin.notDeployed')}
-        {lang === 'bn' ? ' তথ্য যোগ/সম্পাদনা Firestore Console থেকে করুন।' : ' Add or edit records from the Firestore console for now.'}
-      </p>
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t('admin.notDeployed')}</p>
     </div>
   );
 }
 
-export function AdminMembers() {
+/** Applications awaiting review — admin + super_admin. */
+export function AdminApplications() {
   const { t, lang } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetMembers);
+  const { user, role } = useAuth();
+  const { data, loading, error } = useAsyncList(listApplications);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+
+  async function decide(id: string, decision: 'approve' | 'reject', fullName: string) {
+    const application = data.find((item) => item.id === id);
+    if (!application || !user) return;
+    const question = decision === 'approve' ? t('admin.confirmApprove') : t('admin.confirmReject');
+    if (!window.confirm(`${question}\n\n${fullName}`)) return;
+    setBusyId(id);
+    setNote('');
+    try {
+      await reviewApplication(application, decision, { uid: user.uid, role });
+      setNote(t('admin.actionDone'));
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
-    <TableShell
-      title={t('admin.tab.members')}
-      description={t('members.privacy')}
-      headers={['নাম', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা']}
-      loading={loading}
-      error={error}
-      rows={data.map((member) => [
-        member.nameBn,
-        member.ward ?? '—',
-        <Badge tone={member.status === 'active' ? 'green' : member.status === 'pending' ? 'amber' : 'slate'}>
-          {t(`member.status.${member.status}`)}
-        </Badge>,
-        member.role === 'admin' ? (lang === 'bn' ? 'অ্যাডমিন' : 'Admin') : lang === 'bn' ? 'সদস্য' : 'Member',
-      ])}
-    />
+    <div className="space-y-3">
+      {note && <p className="rounded-xl bg-brand-50 px-4 py-2 text-sm text-brand-900">{note}</p>}
+      <AdminTable
+        title={t('admin.tab.applications')}
+        description={t('admin.applicationsLead')}
+        headers={['নাম', 'মোবাইল', 'গ্রাম', 'তারিখ', 'অবস্থা', '']}
+        loading={loading}
+        error={error}
+        rows={data.map((application) => [
+          application.fullName,
+          application.phone,
+          application.village ?? '—',
+          application.createdAt ? formatDate(application.createdAt, lang) : '—',
+          <Badge
+            tone={
+              application.status === 'approved' ? 'green' : application.status === 'rejected' ? 'rose' : 'amber'
+            }
+          >
+            {t(`application.status.${application.status}`)}
+          </Badge>,
+          application.status === 'pending' ? (
+            <span className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyId === application.id}
+                onClick={() => void decide(application.id, 'approve', application.fullName)}
+              >
+                {t('admin.approve')}
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busyId === application.id}
+                onClick={() => void decide(application.id, 'reject', application.fullName)}
+              >
+                {t('admin.reject')}
+              </Button>
+            </span>
+          ) : (
+            <span className="text-xs text-slate-400">{application.reviewedBy ? '✓' : '—'}</span>
+          ),
+        ])}
+      />
+    </div>
+  );
+}
+
+/** Account list with status controls; role changes are super_admin only. */
+export function AdminUsers() {
+  const { t, lang } = useI18n();
+  const { user, role, isSuperAdmin } = useAuth();
+  const { data, loading, error } = useAsyncList(listAllUsers);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+
+  async function changeStatus(target: UserProfile, status: AccountStatus) {
+    if (!user) return;
+    if (!window.confirm(`${t('admin.confirmStatus')}\n\n${target.nameBn} → ${status}`)) return;
+    setBusyId(target.id);
+    setNote('');
+    try {
+      await setUserStatus(target, status, role);
+      setNote(t('admin.actionDone'));
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function changeRole(target: UserProfile, nextRole: Role) {
+    if (!user || nextRole === target.role) return;
+    if (!window.confirm(`${t('admin.confirmRole')}\n\n${target.nameBn} → ${nextRole}`)) return;
+    setBusyId(target.id);
+    setNote('');
+    try {
+      await setUserRole(target, nextRole, role);
+      setNote(t('admin.actionDone'));
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {note && <p className="rounded-xl bg-brand-50 px-4 py-2 text-sm text-brand-900">{note}</p>}
+      <AdminTable
+        title={t('admin.tab.members')}
+        description={t('members.privacy')}
+        headers={['নাম', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা', '']}
+        loading={loading}
+        error={error}
+        rows={data.map((member) => [
+          member.nameBn,
+          member.ward ?? '—',
+          <Badge tone={STATUS_TONES[member.status]}>{t(`member.status.${member.status}`)}</Badge>,
+          isSuperAdmin ? (
+            <select
+              className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+              value={member.role}
+              disabled={busyId === member.id || member.id === user?.uid}
+              onChange={(event) => void changeRole(member, event.target.value as Role)}
+            >
+              {ROLE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {t(`roles.${option}`)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            t(`roles.${member.role}`)
+          ),
+          member.status !== 'active' ? (
+            <Button size="sm" variant="secondary" disabled={busyId === member.id} onClick={() => void changeStatus(member, 'active')}>
+              {t('admin.activate')}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled={busyId === member.id || member.id === user?.uid} onClick={() => void changeStatus(member, 'suspended')}>
+              {t('admin.suspend')}
+            </Button>
+          ),
+        ])}
+      />
+      <p className="text-xs text-slate-400">{t('admin.selfProtection')} {formatDate(new Date(), lang)}</p>
+    </div>
   );
 }
 
@@ -153,14 +227,14 @@ export function AdminCommittee() {
   const { t, pick, lang } = useI18n();
   const { data, loading, error } = useAsyncList(getCommittee);
   return (
-    <TableShell
+    <AdminTable
       title={t('admin.tab.committee')}
       headers={['নাম', 'পদবি', 'যাচাই']}
       loading={loading}
       error={error}
       rows={data.map((member) => [
         pick(member.nameBn, member.nameEn),
-        pick(member.roleTitleBn, member.roleTitleEn) || member.role,
+        pick(member.roleTitleBn, member.roleTitleEn) || t(`committee.role.${member.role}`),
         <Badge tone={member.verification === 'verified' ? 'green' : 'amber'}>
           {member.verification === 'verified' ? (lang === 'bn' ? 'যাচাইকৃত' : 'Verified') : t('common.pending')}
         </Badge>,
@@ -173,7 +247,7 @@ export function AdminNotices() {
   const { t, lang, pick } = useI18n();
   const { data, loading, error } = useAsyncList(adminGetNotices);
   return (
-    <TableShell
+    <AdminTable
       title={t('admin.tab.notices')}
       headers={['শিরোনাম', 'তারিখ', 'অবস্থা']}
       loading={loading}
@@ -181,7 +255,7 @@ export function AdminNotices() {
       rows={data.map((notice) => [
         pick(notice.titleBn, notice.titleEn),
         formatDate(notice.date, lang),
-        <Badge tone={notice.published ? 'green' : 'slate'}>{notice.published ? 'প্রকাশিত' : 'খসড়া'}</Badge>,
+        <Badge tone={notice.published ? 'green' : 'slate'}>{notice.published ? t('admin.published') : t('admin.draft')}</Badge>,
       ])}
     />
   );
@@ -191,7 +265,7 @@ export function AdminActivities() {
   const { t, lang } = useI18n();
   const { data, loading, error } = useAsyncList(adminGetActivities);
   return (
-    <TableShell
+    <AdminTable
       title={t('admin.tab.activities')}
       headers={['শিরোনাম', 'ধরন', 'তারিখ', 'অবস্থা']}
       loading={loading}
@@ -200,45 +274,64 @@ export function AdminActivities() {
         activity.titleBn,
         t(`activities.category.${activity.category}`),
         formatDate(activity.date, lang),
-        <Badge tone={activity.published ? 'green' : 'slate'}>{activity.published ? 'প্রকাশিত' : 'খসড়া'}</Badge>,
+        <Badge tone={activity.published ? 'green' : 'slate'}>{activity.published ? t('admin.published') : t('admin.draft')}</Badge>,
+      ])}
+    />
+  );
+}
+
+export function AdminEvents() {
+  const { t, lang, pick } = useI18n();
+  const { data, loading, error } = useAsyncList(adminGetEvents);
+  return (
+    <AdminTable
+      title={t('admin.tab.events')}
+      headers={['শিরোনাম', 'শুরুর সময়', 'অবস্থা']}
+      loading={loading}
+      error={error}
+      rows={data.map((event) => [
+        pick(event.titleBn, event.titleEn),
+        formatDate(event.startAt, lang),
+        <Badge tone={event.published ? 'green' : 'slate'}>{event.published ? t('admin.published') : t('admin.draft')}</Badge>,
       ])}
     />
   );
 }
 
 export function AdminMessages() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { data, loading, error } = useAsyncList(adminGetMessages);
   return (
-    <TableShell
+    <AdminTable
       title={t('admin.messages')}
-      headers={['নাম', 'বিষয়', 'যাচাই']}
+      headers={['নাম', 'বিষয়', 'তারিখ', 'অবস্থা']}
       loading={loading}
       error={error}
       rows={data.map((message) => [
         message.name,
         message.subject,
-        <Badge tone={message.handled ? 'green' : 'amber'}>{message.handled ? 'সম্পন্ন' : 'অপেক্ষমাণ'}</Badge>,
+        message.createdAt ? formatDate(message.createdAt, lang) : '—',
+        <Badge tone={message.handled ? 'green' : 'amber'}>{message.handled ? t('admin.handled') : t('admin.pending')}</Badge>,
       ])}
     />
   );
 }
 
-export function AdminRequests() {
-  const { t } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetRequests);
+export function AdminAuditLogs() {
+  const { t, lang } = useI18n();
+  const { data, loading, error } = useAsyncList(adminGetAuditLogs);
   return (
-    <TableShell
-      title={t('admin.tab.requests')}
-      headers={['নাম', 'মোবাইল', 'অবস্থা']}
+    <AdminTable
+      title={t('admin.tab.audit')}
+      description={t('admin.auditLead')}
+      headers={['কাজ', 'ধরন', 'বিবরণ', 'সময়']}
       loading={loading}
       error={error}
-      rows={data.map((request) => [
-        request.nameBn,
-        request.phone,
-        <Badge tone={request.status === 'approved' ? 'green' : request.status === 'rejected' ? 'rose' : 'amber'}>
-          {request.status}
-        </Badge>,
+      rows={data.map((log) => [
+        <span className={cn('font-mono text-xs', log.action.includes('role') ? 'text-rose-700' : 'text-slate-700')}>{log.action}</span>,
+        log.targetType,
+        log.detail ?? '—',
+        log.createdAt ? formatDate(log.createdAt, lang) : '—',
       ])}
     />
   );

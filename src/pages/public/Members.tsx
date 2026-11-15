@@ -3,7 +3,7 @@ import { useI18n } from '@/i18n';
 import { initials } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
 import { getMembers } from '@/services/publicData';
-import { submitJoinRequest } from '@/services/forms';
+import { submitApplication } from '@/services/applicationService';
 import { BackendNotConfiguredError, isFirebaseConfigured } from '@/lib/firebase';
 import { PageHero } from '@/components/ui/PageHero';
 import { Container } from '@/components/ui/Container';
@@ -27,8 +27,8 @@ export function MembersPage() {
     setStatus('sending');
     setErrorMessage('');
     try {
-      await submitJoinRequest({
-        nameBn: String(formData.get('nameBn') ?? ''),
+      await submitApplication({
+        fullName: String(formData.get('nameBn') ?? ''),
         guardianName: String(formData.get('guardianName') ?? ''),
         dateOfBirth: String(formData.get('dateOfBirth') ?? ''),
         school: String(formData.get('school') ?? ''),
@@ -38,6 +38,7 @@ export function MembersPage() {
         phone: String(formData.get('phone') ?? ''),
         email: String(formData.get('email') ?? ''),
         motivation: String(formData.get('motivation') ?? ''),
+        uid: undefined,
       });
       form.reset();
       setStatus('sent');

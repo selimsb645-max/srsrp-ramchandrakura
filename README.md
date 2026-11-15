@@ -21,13 +21,12 @@ npm run typecheck         # টাইপ চেক
 
 ---
 
-## ২. Firebase সেটআপ (একবারের কাজ)
+## ২. Firebase সেটআপ (একবারের কাজ, Spark/ফ্রি প্ল্যানেই যথেষ্ট)
 
 1. [Firebase Console](https://console.firebase.google.com) → **Add project**।
 2. **Build → Authentication → Sign-in method → Email/Password** চালু করুন।
-3. **Build → Firestore Database → Create database** (Production mode, অঞ্চল: `asia-south1` বা নিকটবর্তী)।
-4. **Project settings → Your apps → Web app** যোগ করে `firebaseConfig` কপি করুন এবং
-   `.env`-এ বসান:
+3. **Build → Firestore Database → Create database** (Production mode)।
+4. **Project settings → Your apps → Web app** যোগ করে কনফিগ কপি করুন → `.env`:
 
 ```env
 VITE_FIREBASE_API_KEY=...
@@ -38,38 +37,52 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-5. সিকিউরিটি রুলস প্রকাশ করুন (Firebase CLI):
+5. **Authentication → Settings → Authorized domains**-এ আপনার সাইটের ডোমেইন
+   (যেমন `selimsb645-max.github.io`) যোগ করুন, নাহলে লগইন কাজ করবে না।
+6. সিকিউরিটি রুলস প্রকাশ করুন:
 
 ```bash
 npm i -g firebase-tools
 firebase login
-firebase use --add            # আপনার প্রজেক্ট বাছুন
+firebase use --add
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
-> ⚠️ **কখনোই** Firebase Admin SDK-এর service-account JSON বা প্রাইভেট কী ফ্রন্টএন্ডে
-> রাখবেন না। `VITE_` দিয়ে শুরু হওয়া সব ভেরিয়েবল ব্রাউজারে প্রকাশ্যে যায়।
-> `.env` ফাইল git-এ কমিট হয় না (`.gitignore`-এ আছে)।
+> ⚠️ Firebase Admin SDK-এর service-account JSON বা প্রাইভেট কী কখনো ফ্রন্টএন্ডে বা
+> `VITE_` ভেরিয়েবলে রাখবেন না — `VITE_` দিয়ে শুরু হওয়া সব ভেরিয়েবল ব্রাউজারে যায়।
+> `.env` git-এ কমিট হয় না। শুধু `scripts/grant-role.mjs` (লোকাল, git-ignored) Admin SDK ব্যবহার করে।
 
----
+### ২.১ ফ্রি (Spark) প্ল্যানে কী কী চলে
 
-## ৩. অ্যাডমিন কীভাবে বানাবেন
+| বৈশিষ্ট্য | Spark | এই প্রজেক্ট |
+|---|---|---|
+| Auth (email/password, reset, persistence) | ✔ | ব্যবহৃত |
+| Cloud Firestore + Security Rules | ✔ | ব্যবহৃত |
+| Cloud Functions / Storage upload | ✖ (Blaze) | ব্যবহার করা হয়নি |
+| ছবি | — | URL দিয়ে যোগ (Drive/Imgur লিংক) |
 
-অ্যাডমিন অনুমতি দুইভাবে দেওয়া যায়:
+## ৩. ভূমিকা ও অ্যাডমিন
 
-**ক) Firestore দিয়ে (সহজ):** `members/{uid}` ডকুমেন্টে `role: "admin"` বসান,
-যেখানে `{uid}` হলো Firebase Auth ইউজারের UID।
+| ভূমিকা | ক্ষমতা |
+|---|---|
+| `member` | নিজের প্রোফাইল ও যোগাযোগ তথ্য |
+| `editor` | নোটিশ, ইভেন্ট, কার্যক্রম, গ্যালারি প্রকাশ/সম্পাদনা |
+| `admin` | + সদস্য তালিকা, আবেদন অনুমোদন, বার্তা, অডিট লগ |
+| `super_admin` | + ভূমিকা পরিবর্তন, ডিলিট, সেটিংস |
 
-**খ) Custom claim দিয়ে (আরও নিরাপদ, বড় টিমে):** Admin SDK/স্ক্রিপ্ট দিয়ে:
+আসল অনুমোদন হয় `firestore.rules`-এ (সার্ভার-সাইড)। UI গার্ড শুধু সুবিধার জন্য।
 
-```js
-admin.auth().setCustomUserClaims(uid, { admin: true });
-```
+প্রথম super_admin বানানো: Firebase Console → Firestore → `users` → নিজের ডকুমেন্ট →
+`role: "super_admin"` (এবং `status: "active"`), অথবা `node scripts/grant-role.mjs you@example.com super_admin --activate`।
+বিস্তারিত: [`docs/SECURITY.md`](docs/SECURITY.md)
 
-দুটোই `firestore.rules`-এর `isAdmin()` ফাংশনে যাচাই হয়। UI-এর গার্ড শুধু সুবিধার জন্য;
-আসল সুরক্ষা রুলসে।
+### ২.২ নিবন্ধন → অনুমোদন প্রবাহ
 
----
+1. সদস্য `/register`-এ অ্যাকাউন্ট খোলেন → `users/{uid}` (status `pending`),
+   `users/{uid}/private/contact`, আর `membershipApplications`-এ আবেদন তৈরি হয়।
+2. admin `/admin/applications`-এ অনুমোদন দেন → অ্যাকাউন্ট `active` + `published` হয়,
+   `auditLogs`-এ এন্ট্রি যায়।
+3. অনুমোদিত হলে `/portal` খোলে; না হলে `/pending` স্ক্রিন দেখায়।
 
 ## ৪. ডেটা মডেল
 
@@ -77,53 +90,21 @@ admin.auth().setCustomUserClaims(uid, { admin: true });
 
 | কালেকশন | কাজ | পাবলিক রিড |
 |---|---|---|
-| `committee` | কমিটির পদবি | শুধু `published: true` |
-| `members` | সদস্য (ফোন/ইমেইল `private` সাবকালেকশনে) | শুধু `published: true` |
-| `activities` | কার্যক্রম | শুধু `published: true` |
-| `events` | কর্মসূচি | শুধু `published: true` |
-| `notices` | নোটিশ | শুধু `published: true` |
-| `gallery` | ছবি | শুধু `published: true` |
-| `contactMessages` | যোগাযোগ ফর্ম (পাবলিক তৈরি, অ্যাডমিন পড়ে) | না |
-| `joinRequests` | সদস্য আবেদন (পাবলিক তৈরি, অ্যাডমিন পড়ে) | না |
+| `users` | অ্যাকাউন্ট (role, status) | শুধু `published`, ফোন/ইমেইল ছাড়া |
+| `users/{uid}/private/contact` | ফোন, ইমেইল, অভিভাবক | না (মালিক + admin) |
+| `membershipApplications` | সদস্য আবেদন | না (create পাবলিক) |
+| `committees` | কমিটি | শুধু `published` |
+| `notices` | নোটিশ | শুধু `published` |
+| `events` | কর্মসূচি | শুধু `published` |
+| `activities` | কার্যক্রম | শুধু `published` |
+| `gallery` | ছবি | শুধু `published` |
+| `contactMessages` | যোগাযোগ বার্তা | না (create পাবলিক) |
+| `auditLogs` | অডিট ট্রেইল | না, append-only |
 
----
+> Phase 1-এর নাম বদলেছে: `members` → `users`, `committee` → `committees`,
+> `joinRequests` → `membershipApplications`।
 
-## ৫. ফোল্ডার স্ট্রাকচার
-
-```
-src/
-├── components/
-│   ├── layout/        Header, Footer, PublicLayout, PortalLayout
-│   ├── shared/        Logo, LanguageToggle, ProtectedRoute, StatGrid, BackendNotice
-│   └── ui/            Button, Field, Badge, PageHero, EmptyState, Placeholder …
-├── config/site.ts     সংগঠনের নাম, ঠিকানা (প্লেসহোল্ডার), নেভিগেশন, ফিচার ফ্ল্যাগ
-├── context/AuthContext.tsx
-├── hooks/useAsyncList.ts
-├── i18n/              dictionary.ts (bn/en) + provider
-├── lib/               firebase.ts, utils.ts
-├── pages/
-│   ├── public/        Home, About, Committee, Members, Activities, Events, Notices, Gallery, Contact
-│   ├── auth/          Login, ForgotPassword
-│   ├── member/        Dashboard, Profile
-│   └── admin/         AdminScreens.tsx (overview + 6 ম্যানেজমেন্ট স্ক্রিন)
-├── services/          publicData, adminData, forms, collections
-└── types/             ডোমেইন টাইপ
-```
-
----
-
-## ৬. রুট
-
-| রুট | বিষয় |
-|---|---|
-| `/` `/about` `/committee` `/members` `/activities` `/events` `/notices` `/gallery` `/contact` | পাবলিক |
-| `/login` `/forgot-password` | অথ |
-| `/portal` `/portal/profile` | সদস্য পোর্টাল (লগইন লাগে) |
-| `/admin` + `/admin/members` `/admin/committee` `/admin/activities` `/admin/notices` `/admin/messages` `/admin/requests` | অ্যাডমিন |
-
----
-
-## ৭. প্লেসহোল্ডার নীতি (গুরুত্বপূর্ণ)
+## ৫. প্লেসহোল্ডার নীতি (গুরুত্বপূর্ণ)
 
 কোনো সদস্যের নাম, পদবি, নোটিশ, ছবি, ফোন নম্বর বা ইভেন্ট বানানো হয়নি।
 
@@ -140,7 +121,7 @@ src/
 
 ---
 
-## ৮. GitHub + ডেপ্লয়
+## ৬. GitHub + ডেপ্লয়
 
 ```bash
 git init
@@ -162,19 +143,24 @@ Firebase কনফিগ GitHub Secrets-এ যোগ করুন (একই �
 
 ---
 
-## ৯. পরবর্তী ধাপ (Phase 2)
+## ৭. পরবর্তী ধাপ
 
-1. অ্যাডমিন CRUD ফর্ম (এখন read-only), ছবি আপলোড (Firebase Storage)।
-2. সদস্য অনুমোদনের ওয়ার্কফ্লো: `joinRequests` → `members` + Auth ইউজার তৈরি
-   (শুধু Cloud Function/Admin SDK দিয়ে সম্ভব, ক্লায়েন্ট থেকে নয়)।
-3. সদস্যদের জন্য ইভেন্ট রেজিস্ট্রেশন ও উপস্থিতি।
-4. নোটিশ/মাসিক রিপোর্ট PDF এক্সপোর্ট।
-5. Firestore query-তে `where('published','==',true)` যোগ করে ব্যান্ডউইথ কমানো
-   (ইনডেক্স `firestore.indexes.json`-এ প্রস্তুত)।
+Phase 2-তে যা হয়ে গেছে: Firebase Auth (নিবন্ধন, লগইন, লগআউট, পাসওয়ার্ড রিসেট, সেশন
+persistence), Firestore-এর ৯টি কালেকশন, রোল-ভিত্তিক রুলস, অনুমোদন প্রবাহ, অডিট লগ,
+সদস্য প্রোফাইল সম্পাদনা, অ্যাডমিন প্যানেলের সদস্য/আবেদন/অডিট স্ক্রিন।
+
+বাকি কাজ:
+
+1. **অ্যাডমিন CRUD ফর্ম** — নোটিশ/ইভেন্ট/কার্যক্রম এখনো Firestore Console থেকে যোগ করতে হয়
+   (`createdBy` ফিল্ডে নিজের uid দিতে হবে, নাহলে রুলস আটকাবে)।
+2. **ছবি** — Storage লাগলে Blaze দরকার; Spark-এ থাকতে হলে বাইরের URL ব্যবহার করুন।
+3. সদস্যদের ইভেন্ট রেজিস্ট্রেশন ও উপস্থিতি।
+4. নোটিশ/প্রতিবেদনের PDF এক্সপোর্ট।
+5. ইমেইল ভেরিফিকেশন বাধ্যতামূলক করা (এখন শুধু শুভেচ্ছামূলক)।
 
 ---
 
-## ১০. লাইসেন্স ও মালিকানা
+## ৮. লাইসেন্স ও মালিকানা
 
 কোড: সংগঠনের নিজস্ব ব্যবহারের জন্য। কোনো paid API, paid theme বা paid third-party
 সার্ভিস ব্যবহার করা হয়নি — শুধু Firebase free tier (Spark) ও Google Fonts।

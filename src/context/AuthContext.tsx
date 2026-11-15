@@ -1,32 +1,36 @@
 /**
- * Authentication context backed by Firebase Auth.
+ * Authentication + authorization context.
  *
- * The signed-in user's profile is read from the `members` collection (a document whose
- * `uid` equals the Firebase Auth uid). Admin access requires either:
- *   - profile.role === 'admin', or
- *   - an `admin` custom claim on the ID token (set with the Admin SDK on the server).
- * Firestore rules enforce the same rule server-side; the UI gate is only convenience.
+ * The signed-in user's `users/{uid}` document supplies role and status; the private
+ * contact document is loaded separately and only ever for the signed-in member.
+ *
+ * Authorization is ultimately enforced by firestore.rules. Everything here is UI
+ * convenience: `isAdmin` decides which buttons to draw, not who may write.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut as fbSignOut,
-  sendPasswordResetEmail,
-  type User,
-} from 'firebase/auth';
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
-import { COLLECTIONS } from '@/services/collections';
-import type { Member } from '@/types';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { getMyContact, getUserProfile } from '@/services/userService';
+import { registerMember, requestPasswordReset, signInMember, signOutMember, type RegisterInput } from '@/services/authService';
+import type { AccountStatus, PrivateContact, Role, UserProfile } from '@/types';
+
+const STAFF_ROLES: Role[] = ['super_admin', 'admin', 'editor'];
+const ADMIN_ROLES: Role[] = ['super_admin', 'admin'];
 
 interface AuthState {
   user: User | null;
-  profile: Member | null;
+  profile: UserProfile | null;
+  contact: PrivateContact | null;
+  role: Role;
+  status: AccountStatus | 'unknown';
+  isStaff: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isApprovedMember: boolean;
   loading: boolean;
   configured: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ status: AccountStatus; role: Role }>;
+  register: (input: RegisterInput) => Promise<void>;
   signOutUser: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -34,38 +38,20 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-async function loadProfile(user: User): Promise<{ profile: Member | null; isAdmin: boolean }> {
-  if (!db) return { profile: null, isAdmin: false };
-
-  let profile: Member | null = null;
-  try {
-    const snapshot = await getDocs(
-      query(collection(db, COLLECTIONS.members), where('uid', '==', user.uid), limit(1)),
-    );
-    if (!snapshot.empty) {
-      const docSnap = snapshot.docs[0];
-      profile = { ...(docSnap.data() as Member), id: docSnap.id };
-    }
-  } catch {
-    profile = null;
-  }
-
-  let claimAdmin = false;
-  try {
-    const token = await user.getIdTokenResult();
-    claimAdmin = token.claims.admin === true;
-  } catch {
-    claimAdmin = false;
-  }
-
-  return { profile, isAdmin: claimAdmin || profile?.role === 'admin' };
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Member | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [contact, setContact] = useState<PrivateContact | null>(null);
   const [loading, setLoading] = useState(isFirebaseConfigured);
+
+  const load = useCallback(async (nextUser: User) => {
+    const [nextProfile, nextContact] = await Promise.all([
+      getUserProfile(nextUser.uid).catch(() => null),
+      getMyContact(nextUser.uid).catch(() => null),
+    ]);
+    setProfile(nextProfile);
+    setContact(nextContact);
+  }, []);
 
   useEffect(() => {
     if (!auth) {
@@ -75,54 +61,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (nextUser) {
-        const result = await loadProfile(nextUser);
-        setProfile(result.profile);
-        setIsAdmin(result.isAdmin);
+        await load(nextUser);
       } else {
         setProfile(null);
-        setIsAdmin(false);
+        setContact(null);
       }
       setLoading(false);
     });
     return unsubscribe;
-  }, []);
+  }, [load]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!auth) throw new Error('Firebase is not configured.');
-    await signInWithEmailAndPassword(auth, email, password);
+    const signedIn = await signInMember(email, password);
+    // Resolve the profile immediately so the caller can route by approval status.
+    const nextProfile = await getUserProfile(signedIn.uid).catch(() => null);
+    const nextContact = await getMyContact(signedIn.uid).catch(() => null);
+    setUser(signedIn);
+    setProfile(nextProfile);
+    setContact(nextContact);
+    return {
+      status: nextProfile?.status ?? ('pending' as AccountStatus),
+      role: nextProfile?.role ?? ('member' as Role),
+    };
   }, []);
 
+  const register = useCallback(async (input: RegisterInput) => {
+    const created = await registerMember(input);
+    setUser(created);
+    await load(created);
+  }, [load]);
+
   const signOutUser = useCallback(async () => {
-    if (!auth) return;
-    await fbSignOut(auth);
+    await signOutMember();
+    setProfile(null);
+    setContact(null);
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    if (!auth) throw new Error('Firebase is not configured.');
-    await sendPasswordResetEmail(auth, email);
+    await requestPasswordReset(email);
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!user) return;
-    const result = await loadProfile(user);
-    setProfile(result.profile);
-    setIsAdmin(result.isAdmin);
-  }, [user]);
+    if (user) await load(user);
+  }, [user, load]);
 
-  const value = useMemo<AuthState>(
-    () => ({
+  const role: Role = profile?.role ?? 'member';
+  const status: AccountStatus | 'unknown' = profile?.status ?? (user ? 'pending' : 'unknown');
+
+  const value = useMemo<AuthState>(() => {
+    const active = status === 'active';
+    return {
       user,
       profile,
-      isAdmin,
+      contact,
+      role,
+      status,
+      isStaff: active && STAFF_ROLES.includes(role),
+      isAdmin: active && ADMIN_ROLES.includes(role),
+      isSuperAdmin: active && role === 'super_admin',
+      isApprovedMember: active,
       loading,
       configured: isFirebaseConfigured,
       signIn,
+      register,
       signOutUser,
       resetPassword,
       refreshProfile,
-    }),
-    [user, profile, isAdmin, loading, signIn, signOutUser, resetPassword, refreshProfile],
-  );
+    };
+  }, [user, profile, contact, role, status, loading, signIn, register, signOutUser, resetPassword, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

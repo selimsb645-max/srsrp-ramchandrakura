@@ -1,0 +1,167 @@
+/**
+ * Member account operations. Authorization is enforced by firestore.rules; these
+ * helpers only decide what the UI offers, and they never send role/status changes
+ * from a member session.
+ */
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
+import { db, isFirebaseConfigured, requireDb } from '@/lib/firebase';
+import { COLLECTIONS } from './collections';
+import { logAudit } from './auditService';
+import type { AccountStatus, PrivateContact, Role, UserProfile } from '@/types';
+import type { ListResult } from './publicData';
+
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'object' && value !== null && 'toDate' in value) {
+    try {
+      return (value as { toDate: () => Date }).toDate();
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  if (!db) return null;
+  const snapshot = await getDoc(doc(db, COLLECTIONS.users, uid));
+  if (!snapshot.exists()) return null;
+  const raw = snapshot.data() as Omit<UserProfile, 'id'>;
+  return {
+    ...raw,
+    id: snapshot.id,
+    createdAt: toDate(raw.createdAt),
+    updatedAt: toDate(raw.updatedAt),
+    approvedAt: toDate(raw.approvedAt),
+  };
+}
+
+export async function getMyContact(uid: string): Promise<PrivateContact | null> {
+  if (!db) return null;
+  const snapshot = await getDoc(doc(db, COLLECTIONS.users, uid, 'private', 'contact'));
+  if (!snapshot.exists()) return null;
+  return snapshot.data() as PrivateContact;
+}
+
+/** Fields a member may edit on their own profile (never role, status or memberCode). */
+export const MEMBER_EDITABLE_FIELDS = ['nameBn', 'nameEn', 'ward', 'village', 'school', 'className', 'photoUrl'] as const;
+
+export async function updateOwnProfile(uid: string, patch: Record<string, unknown>): Promise<void> {
+  const firestore = requireDb();
+  const allowed: Record<string, unknown> = {};
+  for (const key of MEMBER_EDITABLE_FIELDS) {
+    if (key in patch) allowed[key] = patch[key];
+  }
+  await updateDoc(doc(firestore, COLLECTIONS.users, uid), {
+    ...allowed,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateOwnContact(uid: string, patch: Pick<PrivateContact, 'phone' | 'guardianName'>): Promise<void> {
+  const firestore = requireDb();
+  await setDoc(
+    doc(firestore, COLLECTIONS.users, uid, 'private', 'contact'),
+    { ...patch, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+/** Public, anonymised directory: only published member accounts, never contact data. */
+export async function listPublicMembers(): Promise<ListResult<UserProfile>> {
+  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(db, COLLECTIONS.users),
+        where('published', '==', true),
+        orderBy('nameBn', 'asc'),
+        limit(300),
+      ),
+    );
+    const data = snapshot.docs.map((docSnap) => {
+      const raw = docSnap.data() as UserProfile;
+      return {
+        ...raw,
+        id: docSnap.id,
+        // belt-and-braces: contact fields must never reach this list
+        phone: undefined,
+        email: undefined,
+      } as unknown as UserProfile;
+    });
+    return { data, configured: true, error: null };
+  } catch (error) {
+    return { data: [], configured: true, error: (error as Error).message };
+  }
+}
+
+/** Staff view of every account (admin + super_admin only, enforced by rules). */
+export async function listAllUsers(): Promise<ListResult<UserProfile>> {
+  if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
+  try {
+    const snapshot = await getDocs(query(collection(db, COLLECTIONS.users), orderBy('nameBn', 'asc'), limit(500)));
+    return {
+      data: snapshot.docs.map((docSnap) => {
+        const raw = docSnap.data() as UserProfile;
+        return { ...raw, id: docSnap.id, createdAt: toDate(raw.createdAt) };
+      }),
+      configured: true,
+      error: null,
+    };
+  } catch (error) {
+    return { data: [], configured: true, error: (error as Error).message };
+  }
+}
+
+export async function setUserStatus(
+  target: UserProfile,
+  status: AccountStatus,
+  actorRole: Role,
+): Promise<void> {
+  const firestore = requireDb();
+  await updateDoc(doc(firestore, COLLECTIONS.users, target.id), {
+    status,
+    published: status === 'active' ? true : target.published,
+    updatedAt: serverTimestamp(),
+  });
+  await logAudit({
+    action: 'user.status_changed',
+    targetType: 'user',
+    targetId: target.id,
+    detail: `${target.status} → ${status}`,
+    actorRole,
+  });
+}
+
+/** Role changes are for super_admin only; rules reject everyone else. */
+export async function setUserRole(target: UserProfile, role: Role, actorRole: Role): Promise<void> {
+  const firestore = requireDb();
+  await updateDoc(doc(firestore, COLLECTIONS.users, target.id), {
+    role,
+    updatedAt: serverTimestamp(),
+  });
+  await logAudit({
+    action: 'user.role_changed',
+    targetType: 'user',
+    targetId: target.id,
+    detail: `${target.role} → ${role}`,
+    actorRole,
+  });
+}

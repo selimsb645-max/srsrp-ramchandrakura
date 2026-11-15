@@ -19,7 +19,7 @@ function messageFor(code: string, t: (key: string) => string): string {
 
 export function LoginPage() {
   const { t } = useI18n();
-  const { signIn, configured, user, isAdmin } = useAuth();
+  const { signIn, configured, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -34,8 +34,13 @@ export function LoginPage() {
     setSubmitting(true);
     setError('');
     try {
-      await signIn(email.trim(), password);
-      navigate(from ?? (isAdmin ? '/admin' : '/portal'), { replace: true });
+      const result = await signIn(email.trim(), password);
+      if (result.status !== 'active') {
+        navigate('/pending', { replace: true });
+      } else {
+        const isAdminRole = result.role === 'admin' || result.role === 'super_admin' || result.role === 'editor';
+        navigate(from ?? (isAdminRole ? '/admin' : '/portal'), { replace: true });
+      }
     } catch (err) {
       setError(messageFor((err as { code?: string }).code ?? '', t));
     } finally {
@@ -92,6 +97,12 @@ export function LoginPage() {
                   {t('common.back')}
                 </Link>
               </div>
+              <p className="text-center text-sm text-slate-600">
+                {t('register.noAccount')}{' '}
+                <Link to="/register" className="font-semibold text-brand-800 hover:underline">
+                  {t('register.title')}
+                </Link>
+              </p>
             </form>
           )}
 
@@ -99,7 +110,7 @@ export function LoginPage() {
         </div>
         {user && (
           <p className="mt-4 text-center text-sm text-slate-600">
-            <Link to={isAdmin ? '/admin' : '/portal'} className="font-semibold text-brand-800 hover:underline">
+            <Link to="/portal" className="font-semibold text-brand-800 hover:underline">
               {t('nav.portal')} →
             </Link>
           </p>

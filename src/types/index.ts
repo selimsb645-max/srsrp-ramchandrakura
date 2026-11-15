@@ -1,13 +1,19 @@
 /**
- * Shared domain types.
- * These mirror the Firestore collections described in README.md / docs/SCHEMA.md.
- * Every document also carries createdAt / updatedAt timestamps and a `published`
- * flag where public visibility matters.
+ * Domain types — mirror the Firestore collections in `src/services/collections.ts`.
+ *
+ * Privacy model (enforced in firestore.rules, not only in the UI):
+ *  - `users/{uid}`             public-safe profile: name, ward, village, role, status
+ *  - `users/{uid}/private/contact`  phone, email, guardian, date of birth — owner + staff only
+ *  - every other collection holds organizational content, never personal data of minors
  */
 
 export type Locale = 'bn' | 'en';
 
-export type Visibility = 'public' | 'members' | 'admin';
+/** The four roles requested for the branch's role-based access architecture. */
+export type Role = 'super_admin' | 'admin' | 'editor' | 'member';
+
+/** Membership lifecycle. Only `active` members may open the member dashboard. */
+export type AccountStatus = 'pending' | 'active' | 'suspended';
 
 export interface Timestamped {
   id: string;
@@ -43,29 +49,53 @@ export interface CommitteeMember extends Timestamped {
   verification: 'pending' | 'verified';
 }
 
-export type MemberStatus = 'active' | 'inactive' | 'pending';
-
-/** A registered member of the union branch. */
-export interface Member extends Timestamped {
-  memberCode?: string;
+/** `users/{uid}` — document id equals the Firebase Auth uid. */
+export interface UserProfile extends Timestamped {
+  uid: string;
   nameBn: string;
   nameEn?: string;
+  memberCode?: string;
+  ward?: string;
+  village?: string;
+  school?: string;
+  className?: string;
+  photoUrl?: string;
+  role: Role;
+  status: AccountStatus;
+  /** publishes the public-safe directory entry (never contact details) */
+  published: boolean;
+  approvedBy?: string;
+  approvedAt?: Date | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+}
+
+/** `users/{uid}/private/contact` — never readable by other members. */
+export interface PrivateContact {
+  phone?: string;
+  email?: string;
+  guardianName?: string;
+  dateOfBirth?: string;
+}
+
+export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
+
+/** `membershipApplications/{id}` — anyone may create, only admins may read. */
+export interface MembershipApplication extends Timestamped {
+  uid?: string;
+  fullName: string;
   guardianName?: string;
   dateOfBirth?: string;
   school?: string;
   className?: string;
   ward?: string;
   village?: string;
-  phone?: string;
+  phone: string;
   email?: string;
-  photoUrl?: string;
-  status: MemberStatus;
-  /** linked Firebase Auth uid, set by an admin when the account is approved */
-  uid?: string;
-  role: 'member' | 'admin';
-  /** minors: never expose personal data publicly */
-  isMinor?: boolean;
-  published: boolean;
+  motivation?: string;
+  status: ApplicationStatus;
+  reviewedBy?: string;
+  reviewedAt?: Date | null;
 }
 
 export type ActivityCategory =
@@ -90,6 +120,7 @@ export interface Activity extends Timestamped {
   coverImageUrl?: string;
   galleryIds?: string[];
   published: boolean;
+  createdBy?: string;
 }
 
 export interface EventItem extends Timestamped {
@@ -103,6 +134,7 @@ export interface EventItem extends Timestamped {
   venueEn?: string;
   registrationOpen: boolean;
   published: boolean;
+  createdBy?: string;
 }
 
 export type NoticePriority = 'normal' | 'important' | 'urgent';
@@ -116,6 +148,7 @@ export interface Notice extends Timestamped {
   priority: NoticePriority;
   attachmentUrl?: string;
   published: boolean;
+  createdBy?: string;
 }
 
 export interface GalleryItem extends Timestamped {
@@ -126,6 +159,7 @@ export interface GalleryItem extends Timestamped {
   takenAt?: string;
   credit?: string;
   published: boolean;
+  createdBy?: string;
 }
 
 export interface ContactMessage {
@@ -139,20 +173,25 @@ export interface ContactMessage {
   handled: boolean;
 }
 
-export interface JoinRequest {
-  id: string;
-  nameBn: string;
-  guardianName?: string;
-  dateOfBirth?: string;
-  school?: string;
-  className?: string;
-  ward?: string;
-  village?: string;
-  phone: string;
-  email?: string;
-  motivation?: string;
-  createdAt?: Date | null;
-  status: 'pending' | 'approved' | 'rejected';
+export type AuditAction =
+  | 'user.approved'
+  | 'user.rejected'
+  | 'user.status_changed'
+  | 'user.role_changed'
+  | 'membership.approved'
+  | 'membership.rejected'
+  | 'content.published'
+  | 'content.unpublished'
+  | 'content.deleted';
+
+/** `auditLogs/{id}` — append-only trail of sensitive administrative operations. */
+export interface AuditLog extends Timestamped {
+  actorUid: string;
+  actorRole: Role;
+  action: AuditAction | string;
+  targetType: 'user' | 'membershipApplication' | 'notice' | 'event' | 'activity' | 'gallery' | 'setting';
+  targetId: string;
+  detail?: string;
 }
 
 export interface PublicStats {

@@ -1,137 +1,147 @@
-# Firestore ডেটা স্কিমা
+# Firestore ডেটা স্কিমা (Phase 2 — Firebase integration)
 
-সব ডকুমেন্টে স্বয়ংক্রিয়ভাবে যোগ করুন:
-`createdAt`, `updatedAt` (Timestamp), `published` (boolean, পাবলিক দেখাবে কি না)।
+সব ডকুমেন্টে: `createdAt`, `updatedAt`। পাবলিক কনটেন্টে `published` (boolean) এবং
+কনটেন্ট লেখকের ক্ষেত্রে `createdBy` (uid) বাধ্যতামূলক — রুলস এটি যাচাই করে।
 
-## committee/{docId}
-
-```json
-{
-  "nameBn": "নাম (বাংলা)",
-  "nameEn": "Name (English, optional)",
-  "role": "president | vice_president | general_secretary | joint_secretary | organizing_secretary | treasurer | office_secretary | publicity_secretary | member",
-  "roleTitleBn": "ঐচ্ছিক কাস্টম পদবি",
-  "roleTitleEn": "optional",
-  "photoUrl": "https://…",
-  "order": 1,
-  "termBn": "২০২৫–২০২৭",
-  "verification": "verified",
-  "published": true
-}
-```
-
-`order` ছোট সংখ্যা আগে দেখাবে। `verification` = `"pending"` হলে UI-তে “যাচাই বাকি” চিহ্ন।
-
-## members/{uid}
-
-ডকুমেন্ট আইডি = Firebase Auth UID (অ্যাকাউন্টধারী সদস্যের জন্য)।
-পাবলিক ডকুমেন্টে **কখনো** ফোন/ইমেইল রাখবেন না।
+## ১. `users/{uid}` — অ্যাকাউন্ট (ডকুমেন্ট আইডি = Firebase Auth UID)
 
 ```json
 {
-  "memberCode": "RSK-RC-0001",
+  "uid": "<auth uid>",
   "nameBn": "নাম",
   "nameEn": "Name",
-  "school": "…",
-  "className": "…",
+  "memberCode": "RSK-RC-0001",
   "ward": "5",
   "village": "…",
+  "school": "…",
+  "className": "…",
   "photoUrl": "https://…",
-  "status": "active | inactive | pending",
-  "role": "member | admin",
-  "isMinor": true,
-  "uid": "<auth uid>",
-  "published": true
+  "role": "member | editor | admin | super_admin",
+  "status": "pending | active | suspended",
+  "published": true,
+  "approvedBy": "<admin uid>",
+  "approvedAt": "<timestamp>"
 }
 ```
 
-ব্যক্তিগত তথ্য আলাদা সাবকালেকশনে:
+* `role` ও `status` কেবল অনুমোদিত ভূমিকা বদলাতে পারে (super_admin) বা অনুমোদন দিতে পারে (admin)।
+  সদস্য নিজে কখনোই বদলাতে পারবে না — রুলস সরাসরি প্রত্যাখ্যান করে।
+* পাবলিক ডিরেক্টরি শুধু `published == true` অ্যাকাউন্ট পড়ে এবং সেখানেও ফোন/ইমেইল থাকে না।
 
-```
-members/{uid}/private/contact
-{
-  "phone": "01XXXXXXXXX",
-  "email": "…",
-  "guardianName": "…",
-  "dateOfBirth": "2012-05-01"
-}
+### `users/{uid}/private/contact` — ব্যক্তিগত তথ্য
+
+```json
+{ "phone": "01XXXXXXXXX", "email": "…", "guardianName": "…", "dateOfBirth": "2012-05-01" }
 ```
 
-রুলস: এই সাবকালেকশন শুধু ডকুমেন্টের মালিক ও অ্যাডমিন পড়তে পারে।
+শুধু ডকুমেন্টের মালিক ও admin পড়তে পারে। এখানেই ফোন, ইমেইল, অভিভাবকের নাম, জন্মতারিখ থাকে —
+`users/{uid}`-তে কখনো নয়।
 
-## activities/{docId}
+## ২. `membershipApplications/{id}`
 
 ```json
 {
-  "titleBn": "…", "titleEn": "…",
-  "summaryBn": "…", "summaryEn": "…",
-  "bodyBn": "…", "bodyEn": "…",
-  "category": "education | sports | culture | health | social | environment | other",
-  "date": "2026-11-01",
-  "locationBn": "…",
-  "coverImageUrl": "https://…",
-  "published": true
+  "uid": "<auth uid, ঐচ্ছিক>",
+  "fullName": "…", "guardianName": "…", "dateOfBirth": "…",
+  "school": "…", "className": "…", "ward": "…", "village": "…",
+  "phone": "01XXXXXXXXX", "email": "…", "motivation": "…",
+  "status": "pending | approved | rejected",
+  "reviewedBy": "<admin uid>", "reviewedAt": "<timestamp>"
 }
 ```
 
-## events/{docId}
+* যে কেউ আবেদন করতে পারে, কিন্তু `status` কেবল `pending` দিয়েই তৈরি হয়।
+* পড়া ও পর্যালোচনা কেবল admin। আবেদনকারীর নিজের দেওয়া তথ্য (নাম, ফোন) বদলানো যায় না।
+* অনুমোদন করলে সংশ্লিষ্ট `users/{uid}` সক্রিয় (`status: active`, `published: true`) হয় এবং
+  `auditLogs`-এ একটি এন্ট্রি যায়। Cloud Function ছাড়াই, তাই Spark প্ল্যানেই চলে।
+
+## ৩. `committees/{id}`
 
 ```json
 {
-  "titleBn": "…", "titleEn": "…",
-  "descriptionBn": "…", "descriptionEn": "…",
-  "startAt": "2026-12-16T10:00:00+06:00",
-  "endAt": "2026-12-16T13:00:00+06:00",
+  "nameBn": "…", "nameEn": "…",
+  "role": "president | vice_president | general_secretary | joint_secretary | organizing_secretary | treasurer | office_secretary | publicity_secretary | member",
+  "roleTitleBn": "…", "roleTitleEn": "…", "photoUrl": "…",
+  "order": 1, "termBn": "২০২৫–২০২৭",
+  "verification": "pending | verified",
+  "published": true, "createdBy": "<uid>"
+}
+```
+
+## ৪. `notices/{id}`
+
+```json
+{
+  "titleBn": "…", "titleEn": "…", "bodyBn": "…", "bodyEn": "…",
+  "date": "2026-11-10", "priority": "normal | important | urgent",
+  "attachmentUrl": "…", "published": true, "createdBy": "<uid>"
+}
+```
+
+## ৫. `events/{id}`
+
+```json
+{
+  "titleBn": "…", "titleEn": "…", "descriptionBn": "…", "descriptionEn": "…",
+  "startAt": "2026-12-16T10:00:00+06:00", "endAt": "…",
   "venueBn": "…", "venueEn": "…",
-  "registrationOpen": false,
-  "published": true
+  "registrationOpen": false, "published": true, "createdBy": "<uid>"
 }
 ```
 
-## notices/{docId}
+## ৬. `activities/{id}`
 
 ```json
 {
-  "titleBn": "…", "titleEn": "…",
-  "bodyBn": "…", "bodyEn": "…",
-  "date": "2026-11-10",
-  "priority": "normal | important | urgent",
-  "attachmentUrl": "https://…",
-  "published": true
+  "titleBn": "…", "summaryBn": "…", "bodyBn": "…",
+  "category": "education | sports | culture | health | social | environment | other",
+  "date": "2026-11-01", "locationBn": "…", "coverImageUrl": "…",
+  "published": true, "createdBy": "<uid>"
 }
 ```
 
-## gallery/{docId}
+## ৭. `gallery/{id}`
 
 ```json
-{
-  "titleBn": "…", "titleEn": "…",
-  "imageUrl": "https://…",
-  "albumBn": "…",
-  "takenAt": "2026-10-18",
-  "credit": "…",
-  "published": true
-}
+{ "titleBn": "…", "imageUrl": "https://…", "albumBn": "…", "takenAt": "2026-10-18",
+  "credit": "…", "published": true, "createdBy": "<uid>" }
 ```
 
-## contactMessages/{docId} — শুধু `create` পাবলিক
+## ৮. `contactMessages/{id}`
 
 ```json
 { "name": "…", "email": "…", "phone": "…", "subject": "…", "message": "…", "handled": false }
 ```
 
-## joinRequests/{docId} — শুধু `create` পাবলিক
+পাবলিক `create` (যাচাইসহ), `read/update` কেবল admin, `delete` কেবল super_admin।
+
+## ৯. `auditLogs/{id}` — append-only
 
 ```json
 {
-  "nameBn": "…", "guardianName": "…", "dateOfBirth": "…",
-  "school": "…", "className": "…", "ward": "…", "village": "…",
-  "phone": "…", "email": "…", "motivation": "…", "status": "pending"
+  "actorUid": "<uid>", "actorRole": "admin",
+  "action": "membership.approved | user.role_changed | user.status_changed | …",
+  "targetType": "user | membershipApplication | notice | event | activity | gallery",
+  "targetId": "…", "detail": "member → editor",
+  "createdAt": "2026-11-15T12:00:00.000Z"
 }
 ```
 
-## settings/app
+`update`/`delete` কখনোই অনুমোদিত নয় — অডিট ট্রেইল মুছে ফেলা সম্ভব না।
 
-```json
-{ "noticeBanner": "", "contactOverride": {} }
-```
+## ১০. `settings/{docId}`
+
+পাবলিক পড়া, লেখা কেবল super_admin।
+
+---
+
+## Phase 1 → Phase 2 কালেকশন নাম বদল
+
+| Phase 1 | Phase 2 |
+|---|---|
+| `members` | `users` (+ `users/{uid}/private/contact`) |
+| `committee` | `committees` |
+| `joinRequests` | `membershipApplications` |
+
+পুরনো ডেটা থাকলে Firestore Console থেকে ডকুমেন্ট কপি করে নতুন কালেকশনে নিন, অথবা
+`src/services/collections.ts`-এর `LEGACY_COLLECTIONS` ম্যাপ দেখে স্ক্রিপ্ট লিখুন।

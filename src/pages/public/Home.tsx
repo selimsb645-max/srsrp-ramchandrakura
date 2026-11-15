@@ -3,7 +3,7 @@ import { site } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { formatDate, toBnDigits } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
-import { getActivities, getCommittee, getEvents, getNotices } from '@/services/publicData';
+import { getActivities, getCommittee, getEvents, getMembers, getNotices } from '@/services/publicData';
 import { Container } from '@/components/ui/Container';
 import { ButtonLink } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -25,6 +25,7 @@ export function HomePage() {
   const events = useAsyncList(getEvents);
   const notices = useAsyncList(getNotices);
   const committee = useAsyncList(getCommittee);
+  const members = useAsyncList(getMembers);
 
   const now = new Date();
   const upcoming = events.data
@@ -33,7 +34,7 @@ export function HomePage() {
     .slice(0, 3);
 
   const statItems = [
-    { label: t('stats.members'), value: 0 },
+    { label: t('stats.members'), value: members.data.length },
     { label: t('stats.activities'), value: activities.data.length },
     { label: t('stats.events'), value: events.data.length },
     { label: t('stats.notices'), value: notices.data.length },

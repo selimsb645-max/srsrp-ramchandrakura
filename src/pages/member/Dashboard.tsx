@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 
 export function MemberDashboardPage() {
   const { t, lang, pick } = useI18n();
-  const { user, profile } = useAuth();
+  const { user, profile, contact, role } = useAuth();
   const events = useAsyncList(getEvents);
   const notices = useAsyncList(getNotices);
 
@@ -24,7 +24,7 @@ export function MemberDashboardPage() {
           {profile?.nameBn ?? user?.displayName ?? user?.email ?? ''}
         </h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge tone={profile?.status === 'active' ? 'green' : profile?.status === 'pending' ? 'amber' : 'slate'}>
+          <Badge tone={profile?.status === 'active' ? 'green' : profile?.status === 'pending' ? 'amber' : 'rose'}>
             {t(`member.status.${profile?.status ?? 'pending'}`)}
           </Badge>
           {profile?.memberCode && <span className="text-xs text-brand-200">ID: {profile.memberCode}</span>}
@@ -84,8 +84,9 @@ export function MemberDashboardPage() {
         <h3 className="font-display text-base font-bold text-brand-950">{t('member.myInfo')}</h3>
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           {[
-            { label: t('auth.email'), value: profile?.email ?? user?.email ?? '—' },
-            { label: t('contact.phone'), value: profile?.phone ?? '—' },
+            { label: t('auth.email'), value: contact?.email ?? user?.email ?? '—' },
+            { label: t('contact.phone'), value: contact?.phone ?? '—' },
+            { label: t('member.role'), value: t(`roles.${role}`) },
             { label: lang === 'bn' ? 'গ্রাম' : 'Village', value: profile?.village ?? '—' },
             { label: lang === 'bn' ? 'ওয়ার্ড' : 'Ward', value: profile?.ward ?? '—' },
           ].map((row) => (

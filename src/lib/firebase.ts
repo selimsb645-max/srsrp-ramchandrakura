@@ -1,5 +1,5 @@
 /**
- * Firebase bootstrap.
+ * Central Firebase bootstrap (modular SDK v10).
  *
  * Only *web* config values from the Firebase console belong here. They identify the
  * project to the browser and are not secrets; Firestore Security Rules are what
@@ -7,10 +7,20 @@
  *
  * A Firebase **Admin SDK** private key / service-account JSON must NEVER be placed in
  * frontend code or in a VITE_* variable: anything prefixed with VITE_ is shipped to
- * every visitor's browser.
+ * every visitor's browser. The only Admin SDK usage in this repo is the local,
+ * git-ignored helper in scripts/grant-role.mjs.
+ *
+ * Free (Spark) plan: Authentication (email/password + password reset), Cloud Firestore
+ * and Security Rules are all included. Cloud Functions and Cloud Storage uploads are
+ * NOT used, because both need billing (Blaze).
  */
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  getAuth,
+  setPersistence,
+  type Auth,
+} from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -40,6 +50,17 @@ if (isFirebaseConfigured) {
 
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const db: Firestore | null = app ? getFirestore(app) : null;
+
+/**
+ * Auth state persistence: a member stays signed in after a browser restart
+ * (localStorage), while admin sessions on shared devices can still sign out normally.
+ */
+if (auth) {
+  setPersistence(auth, browserLocalPersistence).catch((error: unknown) => {
+    // eslint-disable-next-line no-console
+    console.warn('[firebase] could not set auth persistence', error);
+  });
+}
 
 export class BackendNotConfiguredError extends Error {
   constructor() {
