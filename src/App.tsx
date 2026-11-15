@@ -37,7 +37,8 @@ import {
 export default function App() {
   return (
     <I18nProvider>
-      <BrowserRouter>
+      {/* basename keeps every route working under the GitHub Pages project path */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AuthProvider>
           <ScrollToTop />
           <Routes>
