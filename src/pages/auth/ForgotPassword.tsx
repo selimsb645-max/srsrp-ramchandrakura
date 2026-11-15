@@ -36,7 +36,7 @@ export function ForgotPasswordPage() {
             <div className="mt-5"><BackendNotice /></div>
           ) : state === 'sent' ? (
             <div className="mt-5 rounded-xl border border-leaf-200 bg-leaf-50 px-4 py-3 text-sm text-leaf-800">
-              {t('auth.resetSent')}
+              {t('auth.resetSent').replace('{email}', email.trim())}
             </div>
           ) : (
             <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
