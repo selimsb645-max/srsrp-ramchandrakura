@@ -166,6 +166,7 @@ export const bn: Dict = {
   'auth.resetLead': 'নিবন্ধিত ইমেইল দিন, রিসেট লিংক পাঠানো হবে।',
   'auth.resetSent': 'সবুজ ডিজাইনের রিসেট লিংকটি আপনার ইমেইলে পাঠানো হয়েছে। না দেখলে স্প্যাম ফোল্ডার দেখুন; কখনো কয়েক মিনিট দেরি হতে পারে।',
   'auth.resetError': 'এখনই রিসেট মেইল পাঠানো যায়নি। একটু পরে আবার চেষ্টা করুন, অথবা অ্যাডমিনের সঙ্গে যোগাযোগ করুন।',
+  'auth.resetLimit': 'এই ইমেইলে অল্প সময়ে অনেকবার রিসেট চাওয়া হয়েছে, তাই Firebase সাময়িকভাবে আটকে দিয়েছে। প্রায় এক ঘণ্টা পর আবার চেষ্টা করুন।',
   'auth.notConfigured': 'ব্যাকএন্ড সংযোগ বাকি',
   'auth.notConfiguredBody':
     'Firebase কনফিগার করা হয়নি, তাই লগইন এখন কাজ করবে না। .env ফাইলে Firebase কী যোগ করুন — বিস্তারিত README-তে।',
@@ -425,6 +426,7 @@ export const en: Dict = {
   'auth.resetLead': 'Enter your registered email and we will send a reset link.',
   'auth.resetSent': 'The reset link has been sent to your email. Check spam if you do not see it; it can sometimes take a few minutes.',
   'auth.resetError': 'The reset email could not be sent right now. Please try again shortly.',
+  'auth.resetLimit': 'This address asked for too many resets in a short time, so Firebase paused it. Please try again in about an hour.',
   'auth.notConfigured': 'Backend not connected',
   'auth.notConfiguredBody':
     'Firebase is not configured yet, so login cannot work. Add Firebase keys to .env — see README for details.',

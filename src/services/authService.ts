@@ -124,7 +124,7 @@ const RESET_ENDPOINT = 'https://solas-5609a435.base44.app/functions/sendResetEma
 const RESET_WORKER = 'https://srsrp-reset-mailer.selimsb645.workers.dev';
 const RESET_QUEUE = 'resetRequests';
 
-async function postJson(url: string, payload: unknown, timeoutMs: number): Promise<{ ok?: boolean } | null> {
+async function postJson(url: string, payload: unknown, timeoutMs: number): Promise<{ ok?: boolean; code?: string } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -134,8 +134,9 @@ async function postJson(url: string, payload: unknown, timeoutMs: number): Promi
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (!response.ok) return null;
-    return (await response.json().catch(() => null)) as { ok?: boolean } | null;
+    const data = (await response.json().catch(() => null)) as { ok?: boolean; code?: string } | null;
+    if (!response.ok) return data ?? null;
+    return data;
   } catch {
     return null;
   } finally {
@@ -171,6 +172,8 @@ export async function requestPasswordReset(email: string): Promise<void> {
   // ২. Cloudflare Worker (তাৎক্ষণিক, প্ল্যাটফর্ম ক্রেডিট লাগে না)
   const viaWorker = await postJson(RESET_WORKER, { email: target }, 25000);
   if (viaWorker?.ok === true) return;
+  // Firebase নিজেই একই ইমেইলে বারবার রিসেট আটকে দেয় — তখন সৎভাবে জানাই
+  if (viaWorker?.code === 'LIMIT') throw new Error('RESET_LIMIT');
 
   // ৩. কিউ — GitHub Actions কয়েক মিনিটের মধ্যে পাঠাবে
   if (await queueResetRequest(target)) return;

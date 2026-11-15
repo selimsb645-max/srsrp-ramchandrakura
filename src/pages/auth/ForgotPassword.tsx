@@ -12,7 +12,7 @@ export function ForgotPasswordPage() {
   const { t } = useI18n();
   const { resetPassword, configured } = useAuth();
   const [email, setEmail] = useState('');
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error' | 'limit'>('idle');
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,8 +20,8 @@ export function ForgotPasswordPage() {
     try {
       await resetPassword(email.trim());
       setState('sent');
-    } catch {
-      setState('error');
+    } catch (error) {
+      setState(error instanceof Error && error.message === 'RESET_LIMIT' ? 'limit' : 'error');
     }
   }
 
@@ -52,6 +52,7 @@ export function ForgotPasswordPage() {
                 />
               </div>
               {state === 'error' && <p className="text-sm text-rose-600">{t('auth.resetError')}</p>}
+              {state === 'limit' && <p className="text-sm text-amber-700">{t('auth.resetLimit')}</p>}
               <Button type="submit" full disabled={state === 'sending'}>
                 {state === 'sending' ? <Spinner className="h-4 w-4" /> : null}
                 {t('common.submit')}
