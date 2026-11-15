@@ -1,0 +1,113 @@
+rules_version = '2';
+
+// শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — ৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা
+// Firestore Security Rules. These rules are the real gate; the UI checks are convenience only.
+//
+// Data model summary (see docs/SCHEMA.md):
+//   members/{memberId}                 public-safe profile (no phone / email)
+//   members/{memberId}/private/contact { phone, email, guardianName } — owner/admin only
+//   committee, activities, events, notices, gallery   published flag controls public read
+//   contactMessages, joinRequests                     public create, admin read
+//   settings/app                                      public read, admin write
+//
+// Admin = a user whose ID token carries the `admin` custom claim, OR whose
+// members/{uid} document has role == 'admin'.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        (
+          exists(/databases/$(database)/documents/members/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin'
+        )
+      );
+    }
+
+    function isOwner(memberId) {
+      return isSignedIn() && request.auth.uid == memberId;
+    }
+
+    // ---------- public content collections ----------
+    match /committee/{docId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /activities/{docId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /events/{docId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /notices/{docId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /gallery/{docId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ---------- members ----------
+    match /members/{memberId} {
+      // Public visitors only ever see published, public-safe profiles.
+      allow read: if resource.data.published == true || isAdmin() || isOwner(memberId);
+
+      allow create, delete: if isAdmin();
+
+      // An owner may edit their own contact details, but never their status or role.
+      allow update: if isAdmin() ||
+        (
+          isOwner(memberId) &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.memberCode == resource.data.memberCode
+        );
+
+      // Private subcollection: phone numbers, emails, guardian details, minors' data.
+      match /private/{privateDoc} {
+        allow read, write: if isAdmin() || isOwner(memberId);
+      }
+    }
+
+    // ---------- forms ----------
+    match /contactMessages/{docId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'subject', 'message'])
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() <= 4000
+                    && request.resource.data.handled == false;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /joinRequests/{docId} {
+      allow create: if request.resource.data.keys().hasAll(['nameBn', 'phone'])
+                    && request.resource.data.phone is string
+                    && request.resource.data.status == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- misc ----------
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
