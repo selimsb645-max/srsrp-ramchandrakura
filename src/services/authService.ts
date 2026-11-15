@@ -27,6 +27,9 @@ export interface RegisterInput {
   ward?: string;
   village?: string;
   motivation?: string;
+  facebookUrl?: string;
+  nidNumber?: string;
+  documents?: { label: string; name: string; key: string; type: string; size: number }[];
 }
 
 /**
@@ -68,6 +71,9 @@ export async function registerMember(input: RegisterInput): Promise<User> {
     email: input.email.trim(),
     guardianName: input.guardianName ?? '',
     dateOfBirth: input.dateOfBirth ?? '',
+    facebookUrl: input.facebookUrl ?? '',
+    nidNumber: input.nidNumber ?? '',
+    documents: input.documents ?? [],
     updatedAt: serverTimestamp(),
   });
 
@@ -83,6 +89,9 @@ export async function registerMember(input: RegisterInput): Promise<User> {
     phone: input.phone,
     email: input.email.trim(),
     motivation: input.motivation ?? '',
+    facebookUrl: input.facebookUrl ?? '',
+    nidNumber: input.nidNumber ?? '',
+    documents: input.documents ?? [],
     status: 'pending',
     createdAt: serverTimestamp(),
   });

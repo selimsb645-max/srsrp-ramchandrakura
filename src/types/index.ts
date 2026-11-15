@@ -93,6 +93,9 @@ export interface MembershipApplication extends Timestamped {
   phone: string;
   email?: string;
   motivation?: string;
+  facebookUrl?: string;
+  nidNumber?: string;
+  documents?: { label: string; name: string; key: string; type: string; size: number }[];
   status: ApplicationStatus;
   reviewedBy?: string;
   reviewedAt?: Date | null;

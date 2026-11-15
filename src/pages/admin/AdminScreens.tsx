@@ -8,6 +8,7 @@ import { getCommittee } from '@/services/publicData';
 import { adminGetActivities, adminGetAuditLogs, adminGetEvents, adminGetMessages, adminGetNotices } from '@/services/adminData';
 import { listAllUsers, setUserRole, setUserStatus } from '@/services/userService';
 import { listApplications, reviewApplication } from '@/services/applicationService';
+import { documentUrl } from '@/services/documentService';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StatGrid } from '@/components/shared/StatGrid';
@@ -97,13 +98,41 @@ export function AdminApplications() {
       <AdminTable
         title={t('admin.tab.applications')}
         description={t('admin.applicationsLead')}
-        headers={['নাম', 'মোবাইল', 'গ্রাম', 'তারিখ', 'অবস্থা', '']}
+        headers={['নাম', 'মোবাইল', 'গ্রাম', 'কাগজপত্র', 'তারিখ', 'অবস্থা', '']}
         loading={loading}
         error={error}
         rows={data.map((application) => [
           application.fullName,
           application.phone,
           application.village ?? '—',
+          <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {(application.documents ?? []).length === 0 ? (
+              <span className="text-slate-400">নেই</span>
+            ) : (
+              (application.documents ?? []).map((document) => (
+                <a
+                  key={document.key}
+                  href={documentUrl(document.key)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-brand-800 underline decoration-dotted"
+                  title={document.name}
+                >
+                  {document.label.replace('শিক্ষা প্রতিষ্ঠানের প্রত্যয়নপত্র / পরিচয়পত্র', 'প্রত্যয়নপত্র')}
+                </a>
+              ))
+            )}
+            {application.facebookUrl ? (
+              <a
+                href={application.facebookUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-brand-800 underline decoration-dotted"
+              >
+                ফেসবুক
+              </a>
+            ) : null}
+          </span>,
           application.createdAt ? formatDate(application.createdAt, lang) : '—',
           <Badge
             tone={

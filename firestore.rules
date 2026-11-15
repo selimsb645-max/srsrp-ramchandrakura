@@ -98,7 +98,17 @@ service cloud.firestore {
                     && (!('uid' in request.resource.data)
                         || (signedIn() && request.resource.data.uid == request.auth.uid))
                     && (!('motivation' in request.resource.data)
-                        || request.resource.data.motivation.size() <= 2000);
+                        || request.resource.data.motivation.size() <= 2000)
+                    // কাগজপত্রের মেটাডেটা: সর্বোচ্চ ৮টি, শুধু কী-নাম-ধরন-আকার
+                    && (!('documents' in request.resource.data)
+                        || (request.resource.data.documents is list
+                            && request.resource.data.documents.size() <= 8))
+                    && (!('facebookUrl' in request.resource.data)
+                        || (request.resource.data.facebookUrl is string
+                            && request.resource.data.facebookUrl.size() <= 300))
+                    && (!('nidNumber' in request.resource.data)
+                        || (request.resource.data.nidNumber is string
+                            && request.resource.data.nidNumber.size() <= 30));
 
       allow read: if isAdmin();
 
