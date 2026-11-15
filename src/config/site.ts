@@ -31,7 +31,8 @@ export const site = {
     branchFacebook: '',
   },
   brand: {
-    logo: '/brand/logo-official.jpg',
+    // BASE_URL keeps the logo working under GitHub Pages' /<repo>/ path
+    logo: `${import.meta.env.BASE_URL}brand/logo-official.jpg`,
     logoAltBn: 'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — অফিসিয়াল লোগো',
     logoAltEn: 'Sheikh Russel Jatiya Shishu-Kishore Parishad — official logo',
   },
