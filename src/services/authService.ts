@@ -5,7 +5,6 @@
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -114,7 +113,7 @@ export async function signOutMember(): Promise<void> {
  *
  * আগে আমাদের নিজের ডিজাইন করা ইমেইল পাঠানোর চেষ্টা করে (Base44 ফাংশন, যা Firebase
  * Admin দিয়ে আসল রিসেট লিংক তৈরি করে)। ফাংশনটি না পেলে বা ব্যর্থ হলে Firebase-এর
- * নিজের `sendPasswordResetEmail`-এ ফিরে যায়, তাই রিসেট ফ্লো কখনো ভাঙে না।
+ * Firebase-এর ডিফল্ট মেইল আর পাঠানো হয় না, কারণ ওতে সংগঠনের নাম বসানো যায় না।
  *
  * বিনামূল্যের পথ: `sendResetEmail` না পারলে (যেমন প্ল্যাটফর্মের ইন্টিগ্রেশন
  * ক্রেডিট শেষ) রিকোয়েস্টটা Firestore-এর `resetRequests`-এ জমা হয়, আর
@@ -171,7 +170,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
   if (branded) return;
   if (await queueResetRequest(target)) return;
 
-  // কিউও না পারলে শেষ ভরসা: Firebase-এর নিজের ডিফল্ট মেইল
-  const auth = requireAuth();
-  await sendPasswordResetEmail(auth, target);
+  // Firebase-এর নিজের ডিফল্ট মেইল আর কখনো পাঠানো হবে না: ওতে "NextAI Vision"
+  // লেখা যায় না। দুটো পথই না পারলে সৎভাবে এরর দেখাই।
+  throw new Error('RESET_UNAVAILABLE');
 }

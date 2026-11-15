@@ -51,7 +51,7 @@ export function ForgotPasswordPage() {
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
-              {state === 'error' && <p className="text-sm text-rose-600">{t('common.error')}</p>}
+              {state === 'error' && <p className="text-sm text-rose-600">{t('auth.resetError')}</p>}
               <Button type="submit" full disabled={state === 'sending'}>
                 {state === 'sending' ? <Spinner className="h-4 w-4" /> : null}
                 {t('common.submit')}
