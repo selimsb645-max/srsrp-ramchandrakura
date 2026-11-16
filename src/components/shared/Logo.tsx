@@ -14,7 +14,7 @@ export function Logo({ className, withText = true }: { className?: string; withT
   const [failed, setFailed] = useState(false);
 
   return (
-    <Link to="/" className={cn('group flex items-center gap-3', className)} aria-label={site.organization.nameBn}>
+    <Link to="/" className={cn('group flex min-w-0 items-center gap-3', className)} aria-label={site.organization.nameBn}>
       <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-soft ring-1 ring-brand-100 sm:h-12 sm:w-12">
         {failed ? (
           <span className="font-display text-sm font-bold text-brand-800">শেরা</span>

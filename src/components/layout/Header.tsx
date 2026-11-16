@@ -29,7 +29,8 @@ export function Header() {
   const desktopNav = publicNav.slice(1);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+    <>
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
       <div className="bg-brand-950 text-white">
         <Container className="flex min-h-[26px] items-center justify-between gap-3 py-1">
           <p className="truncate text-[10.5px] font-medium tracking-wide text-brand-100 sm:text-[11.5px]">
@@ -82,7 +83,7 @@ export function Header() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 xl:hidden">
+        <div className="flex shrink-0 items-center gap-1.5 xl:hidden">
           <LanguageToggle />
           <button
             type="button"
@@ -105,8 +106,13 @@ export function Header() {
         </div>
       </Container>
 
+      </header>
+
       {open && (
-        <div id="mobile-nav" className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto bg-white xl:hidden sm:top-[72px]">
+        <div
+          id="mobile-nav"
+          className="fixed inset-x-0 bottom-0 top-[90px] z-30 overflow-y-auto border-t border-slate-200 bg-white xl:hidden sm:top-[98px]"
+        >
           <Container className="py-4">
             <nav className="flex flex-col" aria-label="Mobile">
               {publicNav.map((item) => (
@@ -152,6 +158,6 @@ export function Header() {
           </Container>
         </div>
       )}
-    </header>
+    </>
   );
 }
