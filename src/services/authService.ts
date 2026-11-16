@@ -4,7 +4,6 @@
  */
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -96,11 +95,19 @@ export async function registerMember(input: RegisterInput): Promise<User> {
     createdAt: serverTimestamp(),
   });
 
-  // Optional e-mail verification. It never grants access by itself; approval does.
+  // Receipt mail, sent by the organisation's own mailer (Cloudflare Worker + Gmail SMTP).
+  // Firebase's built-in verification mail is deliberately NOT used: its template cannot be
+  // changed and it goes out as "NextAI Vision", which confused members. The worker mints the
+  // real Firebase verification link and wraps it in the green branded template, so the member
+  // gets one honest mail: "your application arrived, the committee will review it".
   try {
-    await sendEmailVerification(user);
+    await fetch(`${RESET_WORKER}/signup`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: input.email.trim().toLowerCase(), name: input.nameBn }),
+    });
   } catch {
-    /* rate limited or SMTP not configured — approval is what matters */
+    /* the application is already saved; the receipt mail is a courtesy, never a blocker */
   }
 
   return user;
