@@ -18,7 +18,7 @@ import { Spinner } from '@/components/ui/Spinner';
 
 export function MembersPage() {
   const { t, lang } = useI18n();
-  const { data, loading, configured } = useAsyncList(getMembers);
+  const { data, loading, configured, error } = useAsyncList(getMembers);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -110,6 +110,11 @@ export function MembersPage() {
               description={t('members.privacy')}
             />
             {!configured && <div className="mb-4"><BackendNotice compact /></div>}
+            {error && (
+              <p className="mb-4 rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">
+                {t('common.error')} <span className="text-xs opacity-70">({error})</span>
+              </p>
+            )}
             {loading ? (
               <div className="space-y-2">
                 {[0, 1, 2, 3].map((key) => (

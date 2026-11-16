@@ -15,7 +15,7 @@ const categories: ActivityCategory[] = ['education', 'sports', 'culture', 'healt
 
 export function ActivitiesPage() {
   const { t, lang } = useI18n();
-  const { data, loading, configured } = useAsyncList(getActivities);
+  const { data, loading, configured, error } = useAsyncList(getActivities);
   const [filter, setFilter] = useState<ActivityCategory | 'all'>('all');
 
   const filtered = useMemo(
@@ -29,6 +29,12 @@ export function ActivitiesPage() {
 
       <Container className="py-12 sm:py-16">
         {!configured && <div className="mb-6"><BackendNotice compact /></div>}
+
+        {error && (
+          <p className="mb-6 rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            {t('common.error')} <span className="text-xs opacity-70">({error})</span>
+          </p>
+        )}
 
         <div className="mb-6 flex flex-wrap gap-2">
           <button

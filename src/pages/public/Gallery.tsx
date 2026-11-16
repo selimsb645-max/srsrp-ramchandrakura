@@ -10,7 +10,7 @@ import { BackendNotice } from '@/components/shared/BackendNotice';
 
 export function GalleryPage() {
   const { t, lang, pick } = useI18n();
-  const { data, loading, configured } = useAsyncList(getGallery);
+  const { data, loading, configured, error } = useAsyncList(getGallery);
   const [active, setActive] = useState<string | null>(null);
 
   return (
@@ -19,6 +19,12 @@ export function GalleryPage() {
 
       <Container className="py-12 sm:py-16">
         {!configured && <div className="mb-6"><BackendNotice compact /></div>}
+
+        {error && (
+          <p className="mb-6 rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            {t('common.error')} <span className="text-xs opacity-70">({error})</span>
+          </p>
+        )}
 
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

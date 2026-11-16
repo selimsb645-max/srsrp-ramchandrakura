@@ -11,7 +11,7 @@ import { BackendNotice } from '@/components/shared/BackendNotice';
 
 export function EventsPage() {
   const { t, lang, pick } = useI18n();
-  const { data, loading, configured } = useAsyncList(getEvents);
+  const { data, loading, configured, error } = useAsyncList(getEvents);
 
   const now = Date.now();
   const { upcoming, past } = useMemo(() => {
@@ -28,6 +28,12 @@ export function EventsPage() {
 
       <Container className="py-12 sm:py-16">
         {!configured && <div className="mb-6"><BackendNotice compact /></div>}
+
+        {error && (
+          <p className="mb-6 rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            {t('common.error')} <span className="text-xs opacity-70">({error})</span>
+          </p>
+        )}
 
         {loading ? (
           <div className="space-y-3">
