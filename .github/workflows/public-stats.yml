@@ -25,7 +25,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install auth library
-        run: pip install --quiet google-auth
+        run: pip install --quiet google-auth requests  # google-auth's requests transport needs it
 
       - name: Count and write settings/publicStats
         env:
