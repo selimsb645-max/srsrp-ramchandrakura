@@ -141,6 +141,9 @@ export function MembersPage() {
           <section id="join" className="card scroll-mt-24 p-5 sm:p-6">
             <h2 className="font-display text-xl font-bold text-brand-950">{t('members.joinTitle')}</h2>
             <p className="mt-1 text-sm text-slate-600">{t('members.joinLead')}</p>
+            <p className="mt-1 text-xs text-rose-600">
+              {lang === 'bn' ? '* চিহ্নিত ঘরগুলো অবশ্যই পূরণ করতে হবে।' : '* marked fields are required.'}
+            </p>
 
             {!isFirebaseConfigured ? (
               <div className="mt-4"><BackendNotice /></div>
@@ -151,7 +154,7 @@ export function MembersPage() {
             ) : (
               <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
                 <div>
-                  <Label htmlFor="nameBn">{lang === 'bn' ? 'পূর্ণ নাম' : 'Full name'}</Label>
+                  <Label htmlFor="nameBn">{(lang === 'bn' ? 'পূর্ণ নাম' : 'Full name') + ' *'}</Label>
                   <Input id="nameBn" name="nameBn" required autoComplete="name" />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -160,32 +163,32 @@ export function MembersPage() {
                     <Input id="guardianName" name="guardianName" />
                   </div>
                   <div>
-                    <Label htmlFor="dateOfBirth">{lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth'}</Label>
+                    <Label htmlFor="dateOfBirth">{(lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth') + ' *'}</Label>
                     <Input id="dateOfBirth" name="dateOfBirth" type="date" required />
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="school">{lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School'}</Label>
+                    <Label htmlFor="school">{(lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School') + ' *'}</Label>
                     <Input id="school" name="school" required />
                   </div>
                   <div>
-                    <Label htmlFor="className">{lang === 'bn' ? 'শ্রেণি' : 'Class'}</Label>
+                    <Label htmlFor="className">{(lang === 'bn' ? 'শ্রেণি' : 'Class') + ' *'}</Label>
                     <Input id="className" name="className" required />
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="village">{lang === 'bn' ? 'গ্রাম' : 'Village'}</Label>
+                    <Label htmlFor="village">{(lang === 'bn' ? 'গ্রাম' : 'Village') + ' *'}</Label>
                     <Input id="village" name="village" required />
                   </div>
                   <div>
-                    <Label htmlFor="ward">{lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.'}</Label>
+                    <Label htmlFor="ward">{(lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.') + ' *'}</Label>
                     <Input id="ward" name="ward" inputMode="numeric" required />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="phone">{lang === 'bn' ? 'মোবাইল নম্বর' : 'Mobile number'}</Label>
+                  <Label htmlFor="phone">{(lang === 'bn' ? 'মোবাইল নম্বর' : 'Mobile number') + ' *'}</Label>
                   <Input id="phone" name="phone" required inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" />
                 </div>
                 <div>

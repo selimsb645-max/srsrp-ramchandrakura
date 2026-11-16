@@ -108,23 +108,26 @@ export function RegisterPage() {
         <div className="card p-6 sm:p-8">
           <h1 className="font-display text-2xl font-bold text-brand-950">{t('register.title')}</h1>
           <p className="mt-1 text-sm text-slate-600">{t('register.lead')}</p>
+          <p className="mt-1 text-xs text-rose-600">
+            {lang === 'bn' ? '* চিহ্নিত ঘরগুলো অবশ্যই পূরণ করতে হবে।' : '* marked fields are required.'}
+          </p>
 
           {!configured ? (
             <div className="mt-5"><BackendNotice /></div>
           ) : (
             <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
               <div>
-                <Label htmlFor="nameBn">{lang === 'bn' ? 'পূর্ণ নাম' : 'Full name'}</Label>
+                <Label htmlFor="nameBn">{(lang === 'bn' ? 'পূর্ণ নাম' : 'Full name') + ' *'}</Label>
                 <Input id="nameBn" name="nameBn" required autoComplete="name" />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Label htmlFor="email">{t('auth.email') + ' *'}</Label>
                   <Input id="email" name="email" type="email" required autoComplete="email" />
                 </div>
                 <div>
-                  <Label htmlFor="phone">{lang === 'bn' ? 'মোবাইল নম্বর' : 'Mobile number'}</Label>
+                  <Label htmlFor="phone">{(lang === 'bn' ? 'মোবাইল নম্বর' : 'Mobile number') + ' *'}</Label>
                   <Input id="phone" name="phone" required inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" />
                 </div>
               </div>
@@ -149,7 +152,7 @@ export function RegisterPage() {
                 </div>
                 <div>
                   <Label htmlFor="dateOfBirth">
-                    {lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth'}
+                    {(lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth') + ' *'}
                   </Label>
                   <Input id="dateOfBirth" name="dateOfBirth" type="date" required />
                 </div>
@@ -158,13 +161,13 @@ export function RegisterPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="school">
-                    {lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School'}
+                    {(lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School') + ' *'}
                   </Label>
                   <Input id="school" name="school" required />
                 </div>
                 <div>
                   <Label htmlFor="className">
-                    {lang === 'bn' ? 'শ্রেণি' : 'Class'}
+                    {(lang === 'bn' ? 'শ্রেণি' : 'Class') + ' *'}
                   </Label>
                   <Input id="className" name="className" required />
                 </div>
@@ -173,13 +176,13 @@ export function RegisterPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="village">
-                    {lang === 'bn' ? 'গ্রাম' : 'Village'}
+                    {(lang === 'bn' ? 'গ্রাম' : 'Village') + ' *'}
                   </Label>
                   <Input id="village" name="village" required />
                 </div>
                 <div>
                   <Label htmlFor="ward">
-                    {lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.'}
+                    {(lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.') + ' *'}
                   </Label>
                   <Input id="ward" name="ward" inputMode="numeric" required />
                 </div>
@@ -204,7 +207,7 @@ export function RegisterPage() {
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="facebookUrl">{lang === 'bn' ? 'ফেসবুক আইডি লিংক' : 'Facebook profile link'}</Label>
+                    <Label htmlFor="facebookUrl">{(lang === 'bn' ? 'ফেসবুক আইডি লিংক' : 'Facebook profile link') + ' *'}</Label>
                     <Input id="facebookUrl" name="facebookUrl" required placeholder="https://facebook.com/your.profile" />
                   </div>
                   <div>
