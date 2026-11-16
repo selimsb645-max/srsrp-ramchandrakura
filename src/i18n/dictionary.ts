@@ -48,6 +48,9 @@ export const bn: Dict = {
     'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ, ৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা — শিক্ষা, ক্রীড়া, সংস্কৃতি ও সমাজসেবার মাধ্যমে ইউনিয়নের শিশু-কিশোরদের পাশে।',
   'hero.ctaPrimary': 'সংগঠন সম্পর্কে জানুন',
   'hero.ctaSecondary': 'সদস্য হতে আবেদন করুন',
+  'hero.ctaDashboard': 'আমার ড্যাশবোর্ড',
+  'hero.ctaAdmin': 'অ্যাডমিন প্যানেল',
+  'hero.ctaPending': 'আবেদনের অবস্থা দেখুন',
   'hero.note': 'সকল তথ্য যাচাই সাপেক্ষে প্রকাশিত হয়',
 
   'home.aboutKicker': 'সংগঠন পরিচিতি',
@@ -408,6 +411,9 @@ export const en: Dict = {
     'Sheikh Russel Jatiya Shishu-Kishore Parishad, Ramchandrakura Union Branch — standing beside the children of our union through education, sports, culture and social service.',
   'hero.ctaPrimary': 'About the organization',
   'hero.ctaSecondary': 'Apply for membership',
+  'hero.ctaDashboard': 'My dashboard',
+  'hero.ctaAdmin': 'Admin panel',
+  'hero.ctaPending': 'Check application status',
   'hero.note': 'All information is published after verification',
 
   'home.aboutKicker': 'About us',

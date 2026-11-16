@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { site } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { formatDate, toBnDigits } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 import { useAsyncList } from '@/hooks/useAsyncList';
 import {
   getActivities,
@@ -30,6 +31,17 @@ const values = [
 
 export function HomePage() {
   const { t, lang } = useI18n();
+  const { user, isStaff, isApprovedMember } = useAuth();
+
+  // The join invitation belongs to visitors. A signed-in person gets a way back to
+  // their own place: the admin panel, the member portal, or the pending screen.
+  const signedIn = Boolean(user);
+  const memberCta = isStaff
+    ? { to: '/admin', label: t('hero.ctaAdmin') }
+    : isApprovedMember
+      ? { to: '/portal', label: t('hero.ctaDashboard') }
+      : { to: '/pending', label: t('hero.ctaPending') };
+
   const activities = useAsyncList(getActivities);
   const events = useAsyncList(getEvents);
   const notices = useAsyncList(getNotices);
@@ -91,11 +103,11 @@ export function HomePage() {
                 {t('hero.ctaPrimary')}
               </ButtonLink>
               <ButtonLink
-                to="/members#join"
+                to={signedIn ? memberCta.to : '/members#join'}
                 size="lg"
                 className="border border-white/25 bg-white/10 text-white hover:bg-white/20"
               >
-                {t('hero.ctaSecondary')}
+                {signedIn ? memberCta.label : t('hero.ctaSecondary')}
               </ButtonLink>
             </div>
             <p className="mt-5 text-xs text-brand-300">{t('hero.note')}</p>
@@ -265,6 +277,7 @@ export function HomePage() {
         </div>
       </Container>
 
+      {!signedIn && (
       <section className="bg-brand-950 py-14 text-white sm:py-16">
         <Container className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           <div className="max-w-xl">
@@ -281,6 +294,7 @@ export function HomePage() {
           </div>
         </Container>
       </section>
+      )}
 
       <Container className="py-14">
         <div className="flex flex-col items-center gap-3 text-center">
