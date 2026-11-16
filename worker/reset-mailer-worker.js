@@ -16,6 +16,9 @@ const SIGNUP_SUBJECT = 'সদস্যপদ আবেদন পাওয়া
 const SIGNUP_TEMPLATE_URL = 'https://selimsb645-max.github.io/srsrp-ramchandrakura/brand/email/application-received.html';
 const SITE_URL = 'https://selimsb645-max.github.io/srsrp-ramchandrakura';
 const SIGNUP_DAILY_LIMIT = 6;
+const APPROVED_SUBJECT = 'সদস্যপদ অনুমোদিত হয়েছে — শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ';
+const APPROVED_TEMPLATE_URL = 'https://selimsb645-max.github.io/srsrp-ramchandrakura/brand/email/membership-approved.html';
+const APPROVED_DAILY_LIMIT = 60;
 const TEMPLATE_URL = 'https://selimsb645-max.github.io/srsrp-ramchandrakura/brand/email/reset-password-email.html';
 const ALLOWED_ORIGIN = 'https://selimsb645-max.github.io';
 const SITE_LINE = '৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা, নালিতাবাড়ী, শেরপুর';
@@ -186,9 +189,14 @@ function buildMessageParts(to, subject, text, html) {
 
 let templateCache = { html: '', at: 0 };
 let signupTemplateCache = { html: '', at: 0 };
+let approvedTemplateCache = { html: '', at: 0 };
 
-function renderTemplate(html, name, link, email = '') {
-  return html.split('%LINK%').join(link).split('%DISPLAY_NAME%').join(name).split('%EMAIL%').join(email);
+function renderTemplate(html, name, link, email = '', memberCode = '') {
+  return html
+    .split('%LINK%').join(link)
+    .split('%DISPLAY_NAME%').join(name)
+    .split('%EMAIL%').join(email)
+    .split('%MEMBER_CODE%').join(memberCode);
 }
 
 /**
@@ -298,6 +306,23 @@ async function handleDownload(key, env) {
       'content-disposition': `inline; filename="${(raw.name || 'document').replace(/[^\w.\-]/g, '_')}"`,
     },
   });
+}
+
+/* ------------------------------------ gmail delivery ------------------------------------ */
+
+/** One SMTP hop through the owner's Gmail app password; throws with a readable stage. */
+async function sendViaGmail(env, to, rawMessage) {
+  const smtp = new Smtp();
+  await smtp.open('smtp.gmail.com', 465);
+  await smtp.cmd('EHLO srsrp-worker', [250]);
+  await smtp.cmd('AUTH LOGIN', [334]);
+  await smtp.cmd(b64(MAIL_FROM), [334]);
+  await smtp.cmd(b64(env.GMAIL_APP_PASSWORD), [235]);
+  await smtp.cmd(`MAIL FROM:<${MAIL_FROM}>`, [250]);
+  await smtp.cmd(`RCPT TO:<${to}>`, [250, 251]);
+  await smtp.cmd('DATA', [354]);
+  await smtp.sendRaw(`${rawMessage}\r\n.\r\n`);
+  await smtp.close();
 }
 
 /* --------------------------------- application receipt --------------------------------- */
@@ -448,6 +473,93 @@ async function displayName(authHeaders, email) {
   }
 }
 
+/* --------------------------------- approval notice --------------------------------- */
+
+/**
+ * POST /approved { email, name, memberCode, v? }
+ *
+ * Sent once, from the committee's approve button, so the member learns that the
+ * application was accepted and can sign in. No Firebase action code is needed here: the
+ * button simply opens the site's login page, and the member number is printed in the mail.
+ */
+async function handleApproved(request, env, email, body) {
+  const started = Date.now();
+  const dryRun = body?.dryRun === true;
+
+  if (!env.FIREBASE_SA_JSON || !env.GMAIL_APP_PASSWORD) {
+    return Response.json({ ok: false, code: 'NOT_CONFIGURED' }, { status: 500, headers: cors() });
+  }
+
+  // the approve button is staff-only, but the route itself is public: cap the volume
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const day = new Date().toISOString().slice(0, 10);
+  const rlKey = `approved/${ip}/${day}`;
+  let used = 0;
+  if (env.DOCS && !dryRun) {
+    try {
+      used = Number(await env.DOCS.get(rlKey)) || 0;
+    } catch (_) {}
+    if (used >= APPROVED_DAILY_LIMIT) {
+      return Response.json({ ok: false, code: 'LIMIT' }, { status: 429, headers: cors() });
+    }
+  }
+
+  let stage = 'template';
+  try {
+    const tpl = await loadTemplate(APPROVED_TEMPLATE_URL, approvedTemplateCache, String(body?.v || '').slice(0, 24));
+    if (!tpl.html) {
+      return Response.json({ ok: false, code: 'NO_TEMPLATE', status: tpl.status }, { status: 502, headers: cors() });
+    }
+
+    const name = String(body?.name || '').trim() || 'সদস্য';
+    const memberCode = String(body?.memberCode || '').trim() || 'কমিটি পরে জানাবে';
+    const link = `${SITE_URL}/login`;
+
+    stage = 'build';
+    const text = [
+      `প্রিয় ${name},`,
+      '',
+      'ইউনিয়ন শাখা কমিটি আপনার সদস্যপদ আবেদনটি যাচাই করে অনুমোদন দিয়েছে। অভিনন্দন!',
+      `সদস্য নম্বর: ${memberCode}`,
+      '',
+      'এখন আপনি সদস্য পোর্টালে লগইন করে নিজের তথ্য দেখতে, আইডি কার্ড ও সদস্যপদ সনদ ডাউনলোড করতে পারবেন:',
+      link,
+      '',
+      'শুভেচ্ছান্তে,',
+      MAIL_FROM_NAME,
+      SITE_LINE,
+      '',
+      'এই ইমেইলটি স্বয়ংক্রিয়ভাবে পাঠানো হয়েছে। অনুগ্রহ করে সরাসরি উত্তর দেবেন না।',
+    ].join('\r\n');
+    const html = renderTemplate(tpl.html, name, link, email, memberCode);
+    const message = buildMessageParts(email, APPROVED_SUBJECT, text, html);
+
+    if (dryRun) {
+      return Response.json({ ok: true, dryRun: true, code: 'READY', template: html.length }, { headers: cors() });
+    }
+
+    stage = 'smtp-send';
+    await sendViaGmail(env, email, message);
+
+    if (env.DOCS) {
+      try {
+        await env.DOCS.put(rlKey, String(used + 1), { expirationTtl: 172800 });
+      } catch (_) {}
+    }
+    await logDiag(env, { kind: 'approved-sent', stage: 'done', email, ms: Date.now() - started });
+    return Response.json({ ok: true, sent: true }, { headers: cors() });
+  } catch (error) {
+    await logDiag(env, {
+      kind: 'approved-failed',
+      stage,
+      email,
+      ms: Date.now() - started,
+      error: String(error),
+    });
+    return Response.json({ ok: false, code: 'FAILED', stage, error: String(error).slice(0, 240) }, { status: 500, headers: cors() });
+  }
+}
+
 /* ------------------------------------ handler ------------------------------------ */
 
 function cors(extra = {}) {
@@ -493,6 +605,7 @@ export default {
     }
 
     if (url.pathname === '/signup') return handleSignup(request, env, email, body);
+    if (url.pathname === '/approved') return handleApproved(request, env, email, body);
 
     let stage = 'start';
     const started = Date.now();

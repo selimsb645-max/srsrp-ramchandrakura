@@ -17,6 +17,7 @@ import {
 } from '@/services/adminData';
 import { listAllUsers, nextMemberCode, setMemberCode, setUserRole, setUserStatus } from '@/services/userService';
 import { listApplications, reviewApplication } from '@/services/applicationService';
+import { sendApprovalMail } from '@/services/mailService';
 import { documentUrl } from '@/services/documentService';
 import { deleteContent, saveContent, setContentPublished, type FormValues } from '@/services/contentService';
 import { Badge } from '@/components/ui/Badge';
@@ -128,8 +129,18 @@ export function AdminApplications() {
     setBusyId(id);
     setNote('');
     try {
-      await reviewApplication(application, decision, { uid: user.uid, role });
-      setNote(t('admin.actionDone'));
+      const { memberCode } = await reviewApplication(application, decision, { uid: user.uid, role });
+      if (decision === 'approve' && application.email) {
+        // the approval stands even if the mail fails; say which of the two happened
+        const mailed = await sendApprovalMail({
+          email: application.email,
+          name: application.fullName,
+          memberCode,
+        });
+        setNote(mailed ? t('admin.approvedMailed') : t('admin.approvedNoMail'));
+      } else {
+        setNote(t('admin.actionDone'));
+      }
     } catch (err) {
       setNote((err as Error).message);
     } finally {

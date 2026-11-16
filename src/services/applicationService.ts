@@ -105,9 +105,12 @@ export async function reviewApplication(
   decision: 'approve' | 'reject',
   actor: { uid: string; role: Role },
   rejectionNote?: string,
-): Promise<void> {
+): Promise<{ memberCode?: string }> {
   const firestore = requireDb();
   const status = decision === 'approve' ? 'approved' : 'rejected';
+  // assigned member number (only when the account had none yet), reported back so the
+  // approval mail can print it
+  let memberCode: string | undefined;
 
   await updateDoc(doc(firestore, COLLECTIONS.membershipApplications, application.id), {
     status,
@@ -119,7 +122,6 @@ export async function reviewApplication(
   if (application.uid) {
     // অনুমোদনের সময় সদস্য নম্বর না থাকলে একটি দিয়ে দেওয়া হয়, যাতে আইডি কার্ড ও
     // সনদ সাথে সাথেই তৈরি করা যায়। নম্বরটি কমিটি পরে বদলাতে পারে।
-    let memberCode: string | undefined;
     if (decision === 'approve') {
       const accountRef = doc(firestore, COLLECTIONS.users, application.uid);
       const accountSnap = await getDoc(accountRef);
@@ -150,4 +152,6 @@ export async function reviewApplication(
     detail: application.fullName,
     actorRole: actor.role,
   });
+
+  return { memberCode };
 }
