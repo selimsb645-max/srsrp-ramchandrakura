@@ -4,6 +4,8 @@ import { initials } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
 import { getMembers } from '@/services/publicData';
 import { submitApplication } from '@/services/applicationService';
+import { uploadDocuments } from '@/services/documentService';
+import { FileField } from '@/components/shared/FileField';
 import { BackendNotConfiguredError, isFirebaseConfigured } from '@/lib/firebase';
 import { PageHero } from '@/components/ui/PageHero';
 import { Container } from '@/components/ui/Container';
@@ -19,14 +21,48 @@ export function MembersPage() {
   const { data, loading, configured } = useAsyncList(getMembers);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [eduCert, setEduCert] = useState<File | null>(null);
+  const [nidCopy, setNidCopy] = useState<File | null>(null);
+  const [birthCert, setBirthCert] = useState<File | null>(null);
+  const [boardCerts, setBoardCerts] = useState<File[]>([]);
+  const [consent, setConsent] = useState(false);
+
+  const fileAccept = 'image/jpeg,image/png,image/webp,application/pdf';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    setStatus('sending');
     setErrorMessage('');
+
+    const facebookUrl = String(formData.get('facebookUrl') ?? '').trim();
+    if (!/facebook\.com\//i.test(facebookUrl)) {
+      setStatus('error');
+      setErrorMessage(t('register.facebookInvalid'));
+      return;
+    }
+    if (!photo || !eduCert || !birthCert) {
+      setStatus('error');
+      setErrorMessage(t('register.docsRequired'));
+      return;
+    }
+    if (!consent) {
+      setStatus('error');
+      setErrorMessage(t('register.consentRequired'));
+      return;
+    }
+
+    setStatus('sending');
     try {
+      const documents = await uploadDocuments([
+        { file: photo, label: 'ছবি' },
+        { file: eduCert, label: 'শিক্ষা প্রতিষ্ঠানের প্রত্যয়নপত্র / পরিচয়পত্র' },
+        ...(nidCopy ? [{ file: nidCopy, label: 'জাতীয় পরিচয়পত্রের কপি' }] : []),
+        { file: birthCert, label: 'জন্মসনদের কপি' },
+        ...boardCerts.map((file, index) => ({ file, label: `বোর্ড পরীক্ষার সনদ ${index + 1}` })),
+      ]);
+
       await submitApplication({
         fullName: String(formData.get('nameBn') ?? ''),
         guardianName: String(formData.get('guardianName') ?? ''),
@@ -38,13 +74,27 @@ export function MembersPage() {
         phone: String(formData.get('phone') ?? ''),
         email: String(formData.get('email') ?? ''),
         motivation: String(formData.get('motivation') ?? ''),
+        facebookUrl,
+        documents,
         uid: undefined,
       });
       form.reset();
+      setPhoto(null);
+      setEduCert(null);
+      setNidCopy(null);
+      setBirthCert(null);
+      setBoardCerts([]);
+      setConsent(false);
       setStatus('sent');
     } catch (error) {
       setStatus('error');
-      setErrorMessage(error instanceof BackendNotConfiguredError ? t('auth.notConfiguredBody') : t('common.error'));
+      const reason = (error as Error).message;
+      if (reason === 'DOC_TOO_BIG') setErrorMessage(t('register.docTooBig'));
+      else if (reason.startsWith('DOC_')) setErrorMessage(t('register.docFailed'));
+      else
+        setErrorMessage(
+          error instanceof BackendNotConfiguredError ? t('auth.notConfiguredBody') : t('common.error'),
+        );
     }
   }
 
@@ -111,27 +161,27 @@ export function MembersPage() {
                   </div>
                   <div>
                     <Label htmlFor="dateOfBirth">{lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth'}</Label>
-                    <Input id="dateOfBirth" name="dateOfBirth" type="date" />
+                    <Input id="dateOfBirth" name="dateOfBirth" type="date" required />
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="school">{lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School'}</Label>
-                    <Input id="school" name="school" />
+                    <Input id="school" name="school" required />
                   </div>
                   <div>
                     <Label htmlFor="className">{lang === 'bn' ? 'শ্রেণি' : 'Class'}</Label>
-                    <Input id="className" name="className" />
+                    <Input id="className" name="className" required />
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="village">{lang === 'bn' ? 'গ্রাম' : 'Village'}</Label>
-                    <Input id="village" name="village" />
+                    <Input id="village" name="village" required />
                   </div>
                   <div>
                     <Label htmlFor="ward">{lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.'}</Label>
-                    <Input id="ward" name="ward" inputMode="numeric" />
+                    <Input id="ward" name="ward" inputMode="numeric" required />
                   </div>
                 </div>
                 <div>
@@ -149,6 +199,26 @@ export function MembersPage() {
                     {lang === 'bn' ? 'কেন সদস্য হতে চান' : 'Why do you want to join'}
                   </Label>
                   <Textarea id="motivation" name="motivation" rows={3} />
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold text-slate-600">
+                    {lang === 'bn' ? 'প্রয়োজনীয় কাগজপত্র (নোটিশ অনুযায়ী)' : 'Required documents (per the notice)'}
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <Label htmlFor="join-facebook">{lang === 'bn' ? 'ফেসবুক আইডি লিংক' : 'Facebook profile link'}</Label>
+                      <Input id="join-facebook" name="facebookUrl" required placeholder="https://facebook.com/your.profile" />
+                    </div>
+                    <FileField id="join-photo" label={lang === 'bn' ? 'নিজের ১ কপি ছবি' : 'One photo'} accept="image/jpeg,image/png,image/webp" required onChange={(files) => setPhoto(files[0] ?? null)} />
+                    <FileField id="join-edu" label={lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠানের প্রত্যয়নপত্র / পরিচয়পত্র' : 'School certificate or ID'} accept={fileAccept} required onChange={(files) => setEduCert(files[0] ?? null)} />
+                    <FileField id="join-birth" label={lang === 'bn' ? 'জন্মসনদের কপি' : 'Birth certificate copy'} accept={fileAccept} required onChange={(files) => setBirthCert(files[0] ?? null)} />
+                    <FileField id="join-nid" label={lang === 'bn' ? 'জাতীয় পরিচয়পত্রের কপি' : 'NID copy'} hint={lang === 'bn' ? '১৮ বছরের কম হলে লাগবে না' : 'Not needed under 18'} accept={fileAccept} onChange={(files) => setNidCopy(files[0] ?? null)} />
+                    <FileField id="join-board" label={lang === 'bn' ? 'সকল বোর্ড পরীক্ষার সনদ' : 'Board exam certificates'} hint={lang === 'bn' ? 'একাধিক ফাইল বাছাই করা যায়' : 'Multiple files allowed'} accept={fileAccept} multiple onChange={setBoardCerts} />
+                  </div>
+                  <label className="mt-3 flex items-start gap-2 text-xs text-slate-700">
+                    <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 h-4 w-4" />
+                    <span>{t('register.consent')}</span>
+                  </label>
                 </div>
                 {status === 'error' && <p className="text-sm text-rose-600">{errorMessage || t('common.error')}</p>}
                 <Button type="submit" full disabled={status === 'sending'}>

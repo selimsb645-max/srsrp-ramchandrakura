@@ -34,6 +34,9 @@ export interface ApplicationInput {
   village?: string;
   email?: string;
   motivation?: string;
+  facebookUrl?: string;
+  nidNumber?: string;
+  documents?: { label: string; name: string; key: string; type: string; size: number }[];
   /** present when the applicant already has a login account */
   uid?: string;
 }
@@ -56,12 +59,15 @@ export async function submitApplication(input: ApplicationInput): Promise<void> 
     'village',
     'email',
     'motivation',
+    'facebookUrl',
+    'nidNumber',
     'uid',
   ];
   for (const key of optionalKeys) {
     const value = input[key];
     if (value) payload[key] = value;
   }
+  if (input.documents && input.documents.length > 0) payload.documents = input.documents;
   await addDoc(collection(firestore, COLLECTIONS.membershipApplications), payload);
 }
 

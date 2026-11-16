@@ -9,42 +9,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Logo } from '@/components/shared/Logo';
 import { BackendNotice } from '@/components/shared/BackendNotice';
 import { uploadDocuments } from '@/services/documentService';
-
-/** কাগজপত্রের ফাইল বাছাই — ফাইলের নাম দেখিয়ে দেয়, যাতে ব্যবহারকারী বুঝতে পারে ঠিক আছে। */
-function FileField({
-  id,
-  label,
-  hint,
-  accept,
-  required,
-  multiple,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  hint?: string;
-  accept: string;
-  required?: boolean;
-  multiple?: boolean;
-  onChange: (files: File[]) => void;
-}) {
-  return (
-    <div>
-      <Label htmlFor={id} hint={hint}>
-        {`${label}${required ? ' *' : ''}`}
-      </Label>
-      <input
-        id={id}
-        name={id}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        onChange={(event) => onChange(Array.from(event.target.files ?? []))}
-        className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-800 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
-      />
-    </div>
-  );
-}
+import { FileField } from '@/components/shared/FileField';
 
 function messageFor(code: string, t: (key: string) => string): string {
   if (code.includes('email-already-in-use')) return t('register.emailInUse');
@@ -183,40 +148,40 @@ export function RegisterPage() {
                   <Input id="guardianName" name="guardianName" />
                 </div>
                 <div>
-                  <Label htmlFor="dateOfBirth" hint={t('common.optional')}>
+                  <Label htmlFor="dateOfBirth">
                     {lang === 'bn' ? 'জন্ম তারিখ' : 'Date of birth'}
                   </Label>
-                  <Input id="dateOfBirth" name="dateOfBirth" type="date" />
+                  <Input id="dateOfBirth" name="dateOfBirth" type="date" required />
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="school" hint={t('common.optional')}>
+                  <Label htmlFor="school">
                     {lang === 'bn' ? 'শিক্ষা প্রতিষ্ঠান' : 'School'}
                   </Label>
-                  <Input id="school" name="school" />
+                  <Input id="school" name="school" required />
                 </div>
                 <div>
-                  <Label htmlFor="className" hint={t('common.optional')}>
+                  <Label htmlFor="className">
                     {lang === 'bn' ? 'শ্রেণি' : 'Class'}
                   </Label>
-                  <Input id="className" name="className" />
+                  <Input id="className" name="className" required />
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="village" hint={t('common.optional')}>
+                  <Label htmlFor="village">
                     {lang === 'bn' ? 'গ্রাম' : 'Village'}
                   </Label>
-                  <Input id="village" name="village" />
+                  <Input id="village" name="village" required />
                 </div>
                 <div>
-                  <Label htmlFor="ward" hint={t('common.optional')}>
+                  <Label htmlFor="ward">
                     {lang === 'bn' ? 'ওয়ার্ড নম্বর' : 'Ward no.'}
                   </Label>
-                  <Input id="ward" name="ward" inputMode="numeric" />
+                  <Input id="ward" name="ward" inputMode="numeric" required />
                 </div>
               </div>
 
