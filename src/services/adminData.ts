@@ -1,17 +1,19 @@
 /**
- * Staff-only reads. firestore.rules decide who may read what — the UI checks are
- * convenience only and must never be the sole protection.
+ * Staff-only reads and small staff-only writes. firestore.rules decide who may read
+ * or write what — the UI checks are convenience only and must never be the sole
+ * protection.
  */
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import { db, isFirebaseConfigured, requireDb } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
-import type { Activity, AuditLog, ContactMessage, EventItem, Notice } from '@/types';
+import { logAudit } from './auditService';
+import type { Activity, AuditLog, CommitteeMember, ContactMessage, EventItem, GalleryItem, Notice, Role } from '@/types';
 import type { ListResult } from './publicData';
 
-async function readAll<T>(name: string, orderField: string, max = 200): Promise<ListResult<T>> {
+async function readAll<T>(name: string, orderField: string, max = 200, direction: 'asc' | 'desc' = 'desc'): Promise<ListResult<T>> {
   if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
   try {
-    const snapshot = await getDocs(query(collection(db, name), orderBy(orderField, 'desc'), limit(max)));
+    const snapshot = await getDocs(query(collection(db, name), orderBy(orderField, direction), limit(max)));
     const data = snapshot.docs.map((docSnap) => ({ ...(docSnap.data() as T), id: docSnap.id })) as T[];
     return { data, configured: true, error: null };
   } catch (error) {
@@ -24,6 +26,13 @@ export const adminGetActivities = () => readAll<Activity>(COLLECTIONS.activities
 export const adminGetEvents = () => readAll<EventItem>(COLLECTIONS.events, 'startAt');
 export const adminGetMessages = () => readAll<ContactMessage>(COLLECTIONS.contactMessages, 'createdAt');
 export const adminGetAuditLogs = () => readAll<AuditLog>(COLLECTIONS.auditLogs, 'createdAt');
+export const adminGetGallery = () => readAll<GalleryItem>(COLLECTIONS.gallery, 'createdAt');
+
+/** Drafts included — the public loader only sees `published == true`. */
+export async function adminGetCommittee(): Promise<ListResult<CommitteeMember>> {
+  const result = await readAll<CommitteeMember>(COLLECTIONS.committees, 'order', 200, 'asc');
+  return result;
+}
 
 /** Unhandled contact messages only (admin inbox). */
 export async function adminGetOpenMessages(): Promise<ListResult<ContactMessage>> {
@@ -45,4 +54,21 @@ export async function adminGetOpenMessages(): Promise<ListResult<ContactMessage>
   } catch (error) {
     return { data: [], configured: true, error: (error as Error).message };
   }
+}
+
+export async function setMessageHandled(id: string, handled: boolean): Promise<void> {
+  const firestore = requireDb();
+  await updateDoc(doc(firestore, COLLECTIONS.contactMessages, id), { handled });
+}
+
+export async function deleteMessage(id: string, role: Role): Promise<void> {
+  const firestore = requireDb();
+  await deleteDoc(doc(firestore, COLLECTIONS.contactMessages, id));
+  await logAudit({
+    action: 'message.deleted',
+    targetType: 'setting',
+    targetId: id,
+    actorRole: role,
+    detail: 'যোগাযোগের বার্তা মুছে ফেলা হয়েছে',
+  });
 }

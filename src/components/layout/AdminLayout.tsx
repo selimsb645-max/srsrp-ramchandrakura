@@ -13,6 +13,7 @@ const CONTENT_TABS: Tab[] = [
   { to: '/admin/notices', labelKey: 'admin.tab.notices' },
   { to: '/admin/events', labelKey: 'admin.tab.events' },
   { to: '/admin/committee', labelKey: 'admin.tab.committee' },
+  { to: '/admin/gallery', labelKey: 'admin.tab.gallery' },
 ];
 
 const ADMIN_TABS: Tab[] = [

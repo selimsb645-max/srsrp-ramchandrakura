@@ -28,6 +28,7 @@ import {
   AdminAuditLogs,
   AdminCommittee,
   AdminEvents,
+  AdminGallery,
   AdminMessages,
   AdminNotices,
   AdminOverview,
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="/admin/notices" element={<AdminNotices />} />
               <Route path="/admin/events" element={<AdminEvents />} />
               <Route path="/admin/committee" element={<AdminCommittee />} />
+              <Route path="/admin/gallery" element={<AdminGallery />} />
               <Route
                 path="/admin/members"
                 element={

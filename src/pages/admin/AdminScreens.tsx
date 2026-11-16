@@ -4,16 +4,27 @@ import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { cn, formatDate } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
-import { getCommittee } from '@/services/publicData';
-import { adminGetActivities, adminGetAuditLogs, adminGetEvents, adminGetMessages, adminGetNotices } from '@/services/adminData';
+import {
+  adminGetActivities,
+  adminGetAuditLogs,
+  adminGetCommittee,
+  adminGetEvents,
+  adminGetGallery,
+  adminGetMessages,
+  adminGetNotices,
+  deleteMessage,
+  setMessageHandled,
+} from '@/services/adminData';
 import { listAllUsers, setUserRole, setUserStatus } from '@/services/userService';
 import { listApplications, reviewApplication } from '@/services/applicationService';
 import { documentUrl } from '@/services/documentService';
+import { deleteContent, saveContent, setContentPublished, type FormValues } from '@/services/contentService';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StatGrid } from '@/components/shared/StatGrid';
 import { AdminTable } from './AdminTable';
-import type { AccountStatus, Role, UserProfile } from '@/types';
+import { ContentAdmin, type ColumnDef, type FieldDef } from './ContentAdmin';
+import type { Activity, AccountStatus, CommitteeMember, EventItem, GalleryItem, Notice, Role, UserProfile } from '@/types';
 
 const ROLE_OPTIONS: Role[] = ['member', 'editor', 'admin', 'super_admin'];
 const STATUS_TONES: Record<AccountStatus, 'green' | 'amber' | 'rose'> = {
@@ -22,17 +33,37 @@ const STATUS_TONES: Record<AccountStatus, 'green' | 'amber' | 'rose'> = {
   suspended: 'rose',
 };
 
+/** আজকের তারিখ, yyyy-mm-dd — নতুন নোটিশ/কার্যক্রমের ঘর আগেই ভরা থাকে। */
+function todayInput(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** Firestore-এ রাখা ISO সময়কে datetime-local ঘরে বসানোর রূপে আনি। */
+function toLocalInput(value?: string | null): string {
+  if (!value) return '';
+  return String(value).slice(0, 16);
+}
+
 export function AdminOverview() {
   const { t } = useI18n();
   const users = useAsyncList(listAllUsers);
   const applications = useAsyncList(listApplications);
   const notices = useAsyncList(adminGetNotices);
   const activities = useAsyncList(adminGetActivities);
+  const events = useAsyncList(adminGetEvents);
   const messages = useAsyncList(adminGetMessages);
-  const committee = useAsyncList(getCommittee);
+  const committee = useAsyncList(adminGetCommittee);
 
   const pending = applications.data.filter((application) => application.status === 'pending').length;
   const openMessages = messages.data.filter((message) => !message.handled).length;
+
+  const quickLinks = [
+    { to: '/admin/notices', label: t('admin.quickNotice'), note: `${notices.data.length} ${t('admin.items')}` },
+    { to: '/admin/activities', label: t('admin.quickActivity'), note: `${activities.data.length} ${t('admin.items')}` },
+    { to: '/admin/events', label: t('admin.quickEvent'), note: `${events.data.length} ${t('admin.items')}` },
+  ];
 
   return (
     <div className="space-y-6">
@@ -44,6 +75,18 @@ export function AdminOverview() {
           { label: t('admin.tab.committee'), value: committee.data.length },
         ]}
       />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {quickLinks.map((link) => (
+          <Link key={link.to} to={link.to} className="card flex items-center justify-between p-4 hover:shadow-lg">
+            <span>
+              <span className="block text-sm font-semibold text-brand-950">{link.label}</span>
+              <span className="mt-0.5 block text-xs text-slate-400">{link.note}</span>
+            </span>
+            <span className="text-lg text-brand-700">+</span>
+          </Link>
+        ))}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Link to="/admin/applications" className="card flex items-center justify-between p-5 hover:shadow-lg">
@@ -62,7 +105,9 @@ export function AdminOverview() {
         </Link>
       </div>
 
-      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{t('admin.notDeployed')}</p>
+      <p className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-xs text-brand-900">
+        {t('admin.overviewLead')}
+      </p>
     </div>
   );
 }
@@ -260,97 +305,447 @@ export function AdminUsers() {
   );
 }
 
+const COMMITTEE_ROLE_OPTIONS = [
+  'president',
+  'vice_president',
+  'general_secretary',
+  'joint_secretary',
+  'organizing_secretary',
+  'treasurer',
+  'office_secretary',
+  'publicity_secretary',
+  'member',
+].map((value) => ({ value, label: value }));
+
 export function AdminCommittee() {
-  const { t, pick, lang } = useI18n();
-  const { data, loading, error } = useAsyncList(getCommittee);
-  return (
-    <AdminTable
-      title={t('admin.tab.committee')}
-      headers={['নাম', 'পদবি', 'যাচাই']}
-      loading={loading}
-      error={error}
-      rows={data.map((member) => [
-        pick(member.nameBn, member.nameEn),
-        pick(member.roleTitleBn, member.roleTitleEn) || t(`committee.role.${member.role}`),
+  const { t, pick } = useI18n();
+  const { role } = useAuth();
+
+  const roleOptions = COMMITTEE_ROLE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: t(`committee.role.${option.value}`),
+  }));
+
+  const fields: FieldDef[] = [
+    { name: 'nameBn', label: 'নাম (বাংলা)', required: true },
+    { name: 'nameEn', label: 'নাম (English)', hint: 'ঐচ্ছিক' },
+    { name: 'role', label: 'পদবি', type: 'select', required: true, options: roleOptions },
+    { name: 'order', label: 'ক্রম', type: 'number', required: true, hint: '১ = প্রথমে দেখাবে' },
+    { name: 'roleTitleBn', label: 'পদবির পূর্ণ নাম (বাংলা)', hint: 'যেমন সাংগঠনিক সম্পাদক' },
+    { name: 'roleTitleEn', label: 'পদবির পূর্ণ নাম (English)' },
+    { name: 'termBn', label: 'কার্যকাল', hint: 'যেমন ২০২৬–২০২৮' },
+    { name: 'photoUrl', label: 'ছবি', type: 'image' },
+    { name: 'phone', label: 'মোবাইল', hint: 'ঐচ্ছিক, প্রকাশ্যে দেখানো হয় না' },
+    {
+      name: 'verification',
+      label: 'যাচাই',
+      type: 'select',
+      options: [
+        { value: 'pending', label: 'যাচাই বাকি' },
+        { value: 'verified', label: 'যাচাইকৃত' },
+      ],
+    },
+    { name: 'published', label: 'ওয়েবসাইটে প্রকাশ করুন', type: 'checkbox', wide: true },
+  ];
+
+  const columns: ColumnDef<CommitteeMember>[] = [
+    { header: 'নাম', cell: (member) => pick(member.nameBn, member.nameEn) },
+    {
+      header: 'পদবি',
+      cell: (member) => pick(member.roleTitleBn, member.roleTitleEn) || t(`committee.role.${member.role}`),
+    },
+    {
+      header: 'যাচাই',
+      cell: (member) => (
         <Badge tone={member.verification === 'verified' ? 'green' : 'amber'}>
-          {member.verification === 'verified' ? (lang === 'bn' ? 'যাচাইকৃত' : 'Verified') : t('common.pending')}
-        </Badge>,
-      ])}
+          {member.verification === 'verified' ? 'যাচাইকৃত' : t('common.pending')}
+        </Badge>
+      ),
+    },
+    { header: 'কার্যকাল', cell: (member) => member.termBn ?? '—' },
+  ];
+
+  return (
+    <ContentAdmin<CommitteeMember>
+      title={t('admin.tab.committee')}
+      description={t('admin.manageLead')}
+      addLabel="নতুন কমিটি সদস্য"
+      load={adminGetCommittee}
+      columns={columns}
+      fields={fields}
+      blank={{ nameBn: '', nameEn: '', role: 'member', order: 10, verification: 'pending', published: false }}
+      toForm={(member) => ({
+        nameBn: member.nameBn,
+        nameEn: member.nameEn ?? '',
+        role: member.role,
+        roleTitleBn: member.roleTitleBn ?? '',
+        roleTitleEn: member.roleTitleEn ?? '',
+        order: member.order ?? 10,
+        termBn: member.termBn ?? '',
+        photoUrl: member.photoUrl ?? '',
+        phone: member.phone ?? '',
+        verification: member.verification,
+        published: member.published === true,
+      })}
+      save={(values, id) => saveContent('committees', values, id)}
+      remove={(member) => deleteContent('committees', member.id, role)}
+      publish={{
+        isPublished: (member) => member.published === true,
+        toggle: (member) => setContentPublished('committees', member.id, !member.published, role),
+      }}
+      emptyTitle="কমিটির কোনো সদস্য এখনো যোগ করা হয়নি।"
     />
   );
 }
 
 export function AdminNotices() {
   const { t, lang, pick } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetNotices);
+  const { role } = useAuth();
+
+  const fields: FieldDef[] = [
+    { name: 'titleBn', label: 'শিরোনাম (বাংলা)', required: true },
+    { name: 'titleEn', label: 'শিরোনাম (English)' },
+    { name: 'date', label: 'তারিখ', type: 'date', required: true },
+    {
+      name: 'priority',
+      label: 'গুরুত্ব',
+      type: 'select',
+      required: true,
+      options: [
+        { value: 'normal', label: t('notices.priority.normal') },
+        { value: 'important', label: t('notices.priority.important') },
+        { value: 'urgent', label: t('notices.priority.urgent') },
+      ],
+    },
+    { name: 'bodyBn', label: 'বিস্তারিত (বাংলা)', type: 'textarea', required: true },
+    { name: 'bodyEn', label: 'বিস্তারিত (English)', type: 'textarea' },
+    { name: 'attachmentUrl', label: 'সংযুক্তির লিংক', hint: 'PDF বা ছবির লিংক, ঐচ্ছিক' },
+    { name: 'published', label: 'ওয়েবসাইটে প্রকাশ করুন', type: 'checkbox', wide: true },
+  ];
+
+  const columns: ColumnDef<Notice>[] = [
+    { header: 'শিরোনাম', cell: (notice) => pick(notice.titleBn, notice.titleEn) },
+    { header: 'তারিখ', cell: (notice) => formatDate(notice.date, lang) },
+    { header: 'গুরুত্ব', cell: (notice) => t(`notices.priority.${notice.priority}`) },
+  ];
+
   return (
-    <AdminTable
+    <ContentAdmin<Notice>
       title={t('admin.tab.notices')}
-      headers={['শিরোনাম', 'তারিখ', 'অবস্থা']}
-      loading={loading}
-      error={error}
-      rows={data.map((notice) => [
-        pick(notice.titleBn, notice.titleEn),
-        formatDate(notice.date, lang),
-        <Badge tone={notice.published ? 'green' : 'slate'}>{notice.published ? t('admin.published') : t('admin.draft')}</Badge>,
-      ])}
+      description={t('admin.manageLead')}
+      addLabel="নতুন নোটিশ"
+      load={adminGetNotices}
+      columns={columns}
+      fields={fields}
+      blank={{ titleBn: '', titleEn: '', bodyBn: '', bodyEn: '', date: todayInput(), priority: 'normal', published: false }}
+      toForm={(notice) => ({
+        titleBn: notice.titleBn,
+        titleEn: notice.titleEn ?? '',
+        bodyBn: notice.bodyBn,
+        bodyEn: notice.bodyEn ?? '',
+        date: toLocalInput(notice.date).slice(0, 10),
+        priority: notice.priority,
+        attachmentUrl: notice.attachmentUrl ?? '',
+        published: notice.published === true,
+      })}
+      save={(values, id) => saveContent('notices', values, id)}
+      remove={(notice) => deleteContent('notices', notice.id, role)}
+      publish={{
+        isPublished: (notice) => notice.published === true,
+        toggle: (notice) => setContentPublished('notices', notice.id, !notice.published, role),
+      }}
+      emptyTitle="এখনো কোনো নোটিশ যোগ করা হয়নি।"
     />
   );
 }
 
 export function AdminActivities() {
   const { t, lang } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetActivities);
+  const { role } = useAuth();
+
+  const fields: FieldDef[] = [
+    { name: 'titleBn', label: 'শিরোনাম (বাংলা)', required: true },
+    { name: 'titleEn', label: 'শিরোনাম (English)' },
+    {
+      name: 'category',
+      label: 'ধরন',
+      type: 'select',
+      required: true,
+      options: ['education', 'sports', 'culture', 'health', 'social', 'environment', 'other'].map((value) => ({
+        value,
+        label: t(`activities.category.${value}`),
+      })),
+    },
+    { name: 'date', label: 'তারিখ', type: 'date', required: true },
+    { name: 'summaryBn', label: 'সংক্ষেপ (বাংলা)', type: 'textarea', required: true },
+    { name: 'summaryEn', label: 'সংক্ষেপ (English)', type: 'textarea' },
+    { name: 'bodyBn', label: 'বিস্তারিত (বাংলা)', type: 'textarea' },
+    { name: 'bodyEn', label: 'বিস্তারিত (English)', type: 'textarea' },
+    { name: 'locationBn', label: 'স্থান' },
+    { name: 'coverImageUrl', label: 'প্রচ্ছদ ছবি', type: 'image' },
+    { name: 'published', label: 'ওয়েবসাইটে প্রকাশ করুন', type: 'checkbox', wide: true },
+  ];
+
+  const columns: ColumnDef<Activity>[] = [
+    { header: 'শিরোনাম', cell: (activity) => activity.titleBn },
+    { header: 'ধরন', cell: (activity) => t(`activities.category.${activity.category}`) },
+    { header: 'তারিখ', cell: (activity) => formatDate(activity.date, lang) },
+  ];
+
   return (
-    <AdminTable
+    <ContentAdmin<Activity>
       title={t('admin.tab.activities')}
-      headers={['শিরোনাম', 'ধরন', 'তারিখ', 'অবস্থা']}
-      loading={loading}
-      error={error}
-      rows={data.map((activity) => [
-        activity.titleBn,
-        t(`activities.category.${activity.category}`),
-        formatDate(activity.date, lang),
-        <Badge tone={activity.published ? 'green' : 'slate'}>{activity.published ? t('admin.published') : t('admin.draft')}</Badge>,
-      ])}
+      description={t('admin.manageLead')}
+      addLabel="নতুন কার্যক্রম"
+      load={adminGetActivities}
+      columns={columns}
+      fields={fields}
+      blank={{
+        titleBn: '',
+        titleEn: '',
+        category: 'education',
+        date: todayInput(),
+        summaryBn: '',
+        summaryEn: '',
+        published: false,
+      }}
+      toForm={(activity) => ({
+        titleBn: activity.titleBn,
+        titleEn: activity.titleEn ?? '',
+        category: activity.category,
+        date: toLocalInput(activity.date).slice(0, 10),
+        summaryBn: activity.summaryBn,
+        summaryEn: activity.summaryEn ?? '',
+        bodyBn: activity.bodyBn ?? '',
+        bodyEn: activity.bodyEn ?? '',
+        locationBn: activity.locationBn ?? '',
+        coverImageUrl: activity.coverImageUrl ?? '',
+        published: activity.published === true,
+      })}
+      save={(values, id) => saveContent('activities', values, id)}
+      remove={(activity) => deleteContent('activities', activity.id, role)}
+      publish={{
+        isPublished: (activity) => activity.published === true,
+        toggle: (activity) => setContentPublished('activities', activity.id, !activity.published, role),
+      }}
+      emptyTitle="এখনো কোনো কার্যক্রম যোগ করা হয়নি।"
     />
   );
 }
 
 export function AdminEvents() {
   const { t, lang, pick } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetEvents);
+  const { role } = useAuth();
+
+  const fields: FieldDef[] = [
+    { name: 'titleBn', label: 'শিরোনাম (বাংলা)', required: true },
+    { name: 'titleEn', label: 'শিরোনাম (English)' },
+    { name: 'startAt', label: 'শুরু', type: 'datetime', required: true },
+    { name: 'endAt', label: 'শেষ', type: 'datetime' },
+    { name: 'venueBn', label: 'স্থান (বাংলা)' },
+    { name: 'venueEn', label: 'স্থান (English)' },
+    { name: 'descriptionBn', label: 'বিবরণ (বাংলা)', type: 'textarea' },
+    { name: 'descriptionEn', label: 'বিবরণ (English)', type: 'textarea' },
+    { name: 'registrationOpen', label: 'অনলাইন নিবন্ধন চালু', type: 'checkbox', wide: true },
+    { name: 'published', label: 'ওয়েবসাইটে প্রকাশ করুন', type: 'checkbox', wide: true },
+  ];
+
+  const columns: ColumnDef<EventItem>[] = [
+    { header: 'শিরোনাম', cell: (event) => pick(event.titleBn, event.titleEn) },
+    { header: 'শুরু', cell: (event) => formatDate(event.startAt, lang) },
+    { header: 'স্থান', cell: (event) => pick(event.venueBn, event.venueEn) || '—' },
+  ];
+
   return (
-    <AdminTable
+    <ContentAdmin<EventItem>
       title={t('admin.tab.events')}
-      headers={['শিরোনাম', 'শুরুর সময়', 'অবস্থা']}
-      loading={loading}
-      error={error}
-      rows={data.map((event) => [
-        pick(event.titleBn, event.titleEn),
-        formatDate(event.startAt, lang),
-        <Badge tone={event.published ? 'green' : 'slate'}>{event.published ? t('admin.published') : t('admin.draft')}</Badge>,
-      ])}
+      description={t('admin.manageLead')}
+      addLabel="নতুন কর্মসূচি"
+      load={adminGetEvents}
+      columns={columns}
+      fields={fields}
+      blank={{
+        titleBn: '',
+        titleEn: '',
+        startAt: '',
+        venueBn: '',
+        venueEn: '',
+        registrationOpen: false,
+        published: false,
+      }}
+      toForm={(event) => ({
+        titleBn: event.titleBn,
+        titleEn: event.titleEn ?? '',
+        startAt: toLocalInput(event.startAt),
+        endAt: toLocalInput(event.endAt),
+        venueBn: event.venueBn ?? '',
+        venueEn: event.venueEn ?? '',
+        descriptionBn: event.descriptionBn ?? '',
+        descriptionEn: event.descriptionEn ?? '',
+        registrationOpen: event.registrationOpen === true,
+        published: event.published === true,
+      })}
+      save={(values, id) => saveContent('events', values, id)}
+      remove={(event) => deleteContent('events', event.id, role)}
+      publish={{
+        isPublished: (event) => event.published === true,
+        toggle: (event) => setContentPublished('events', event.id, !event.published, role),
+      }}
+      emptyTitle="এখনো কোনো কর্মসূচি যোগ করা হয়নি।"
+    />
+  );
+}
+
+export function AdminGallery() {
+  const { t, lang, pick } = useI18n();
+  const { role } = useAuth();
+
+  const fields: FieldDef[] = [
+    { name: 'titleBn', label: 'শিরোনাম (বাংলা)', required: true },
+    { name: 'titleEn', label: 'শিরোনাম (English)' },
+    { name: 'imageUrl', label: 'ছবি', type: 'image', required: true },
+    { name: 'albumBn', label: 'অ্যালবাম', hint: 'যেমন বার্ষিক ক্রীড়া ২০২৬' },
+    { name: 'takenAt', label: 'ছবি তোলার তারিখ', type: 'date' },
+    { name: 'credit', label: 'কৃতজ্ঞতা', hint: 'ছবি যিনি তুলেছেন' },
+    { name: 'published', label: 'ওয়েবসাইটে প্রকাশ করুন', type: 'checkbox', wide: true },
+  ];
+
+  const columns: ColumnDef<GalleryItem>[] = [
+    { header: 'শিরোনাম', cell: (item) => pick(item.titleBn, item.titleEn) },
+    { header: 'অ্যালবাম', cell: (item) => item.albumBn ?? '—' },
+    { header: 'তারিখ', cell: (item) => (item.takenAt ? formatDate(item.takenAt, lang) : '—') },
+  ];
+
+  return (
+    <ContentAdmin<GalleryItem>
+      title={t('admin.tab.gallery')}
+      description={t('admin.manageLead')}
+      addLabel="নতুন ছবি"
+      load={adminGetGallery}
+      columns={columns}
+      fields={fields}
+      blank={{ titleBn: '', titleEn: '', imageUrl: '', albumBn: '', takenAt: '', credit: '', published: false }}
+      toForm={(item) => ({
+        titleBn: item.titleBn,
+        titleEn: item.titleEn ?? '',
+        imageUrl: item.imageUrl,
+        albumBn: item.albumBn ?? '',
+        takenAt: item.takenAt ?? '',
+        credit: item.credit ?? '',
+        published: item.published === true,
+      })}
+      save={(values: FormValues, id?: string | null) => saveContent('gallery', values, id)}
+      remove={(item) => deleteContent('gallery', item.id, role)}
+      publish={{
+        isPublished: (item) => item.published === true,
+        toggle: (item) => setContentPublished('gallery', item.id, !item.published, role),
+      }}
+      emptyTitle="এখনো কোনো ছবি যোগ করা হয়নি।"
     />
   );
 }
 
 export function AdminMessages() {
   const { t, lang } = useI18n();
-  const { data, loading, error } = useAsyncList(adminGetMessages);
+  const { role, isSuperAdmin } = useAuth();
+  const [version, setVersion] = useState(0);
+  const { data, loading, error } = useAsyncList(adminGetMessages, [version]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+
+  async function toggleHandled(id: string, handled: boolean) {
+    setBusyId(id);
+    setNote('');
+    try {
+      await setMessageHandled(id, handled);
+      setVersion((value) => value + 1);
+      setNote(t('admin.saved'));
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm(t('admin.confirmDelete'))) return;
+    setBusyId(id);
+    setNote('');
+    try {
+      await deleteMessage(id, role);
+      setVersion((value) => value + 1);
+      setNote(t('admin.deleted'));
+    } catch (err) {
+      setNote((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
-    <AdminTable
-      title={t('admin.messages')}
-      headers={['নাম', 'বিষয়', 'তারিখ', 'অবস্থা']}
-      loading={loading}
-      error={error}
-      rows={data.map((message) => [
-        message.name,
-        message.subject,
-        message.createdAt ? formatDate(message.createdAt, lang) : '—',
-        <Badge tone={message.handled ? 'green' : 'amber'}>{message.handled ? t('admin.handled') : t('admin.pending')}</Badge>,
-      ])}
-    />
+    <div className="space-y-3">
+      <div>
+        <h1 className="font-display text-lg font-bold text-brand-950">{t('admin.messages')}</h1>
+        <p className="mt-1 text-xs text-slate-500">{t('admin.messagesLead')}</p>
+      </div>
+      {note && <p className="rounded-xl bg-brand-50 px-4 py-2 text-sm text-brand-900">{note}</p>}
+      {error && <p className="rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</p>}
+
+      {loading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((key) => (
+            <div key={key} className="skeleton h-20 w-full" />
+          ))}
+        </div>
+      ) : data.length === 0 ? (
+        <div className="card p-5 text-sm text-slate-500">{t('admin.noMessages')}</div>
+      ) : (
+        <ul className="space-y-2.5">
+          {data.map((message) => (
+            <li key={message.id} className="card p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-display text-base font-bold text-brand-950">{message.name}</p>
+                  <p className="mt-0.5 text-sm text-slate-700">{message.subject}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {message.createdAt ? formatDate(message.createdAt, lang) : ''}
+                    {message.phone ? ` • ${message.phone}` : ''}
+                    {message.email ? ` • ${message.email}` : ''}
+                  </p>
+                </div>
+                <Badge tone={message.handled ? 'green' : 'amber'}>
+                  {message.handled ? t('admin.handled') : t('admin.pending')}
+                </Badge>
+              </div>
+              {openId === message.id && (
+                <p className="mt-3 whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  {message.message}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setOpenId(openId === message.id ? null : message.id)}>
+                  {openId === message.id ? t('nav.close') : t('admin.viewMessage')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busyId === message.id}
+                  onClick={() => void toggleHandled(message.id, !message.handled)}
+                >
+                  {message.handled ? t('admin.markPending') : t('admin.markHandled')}
+                </Button>
+                {isSuperAdmin && (
+                  <Button size="sm" variant="danger" disabled={busyId === message.id} onClick={() => void remove(message.id)}>
+                    {t('admin.delete')}
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -192,7 +192,7 @@ export interface AuditLog extends Timestamped {
   actorUid: string;
   actorRole: Role;
   action: AuditAction | string;
-  targetType: 'user' | 'membershipApplication' | 'notice' | 'event' | 'activity' | 'gallery' | 'setting';
+  targetType: 'user' | 'membershipApplication' | 'notice' | 'event' | 'activity' | 'gallery' | 'committee' | 'setting';
   targetId: string;
   detail?: string;
 }
