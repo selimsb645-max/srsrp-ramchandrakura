@@ -8,7 +8,7 @@ import { Logo } from '@/components/shared/Logo';
 export function Footer() {
   const { t, lang } = useI18n();
   const year = new Date().getFullYear();
-  const fb = safeExternalUrl(site.links.officialFacebook);
+  const fb = safeExternalUrl(site.links.branchFacebook || site.links.officialFacebook);
   const address = lang === 'bn' ? site.contact.addressBn : site.contact.addressEn;
 
   return (

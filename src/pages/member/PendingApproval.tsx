@@ -68,7 +68,7 @@ export function PendingApprovalPage() {
 
           <p className="mt-5 text-xs text-slate-500">
             {lang === 'bn' ? 'অনুমোদনের জন্য যোগাযোগ করুন: ' : 'For approval, contact: '}
-            <a href={site.links.officialFacebook} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-800 hover:underline">
+            <a href={site.links.branchFacebook || site.links.officialFacebook} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-800 hover:underline">
               {lang === 'bn' ? 'অফিসিয়াল পেজ' : 'official page'}
             </a>
           </p>

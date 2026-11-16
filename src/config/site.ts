@@ -34,8 +34,10 @@ export const site = {
     officeHoursBn: '«অফিস সময় যাচাই বাকি»',
   },
   links: {
+    /** The branch's own page — every "follow us" link points here. */
+    branchFacebook: 'https://www.facebook.com/profile.php?id=61595768916356',
+    /** National council page, kept for the parent-body references. */
     officialFacebook: 'https://www.facebook.com/sheikhrusseljskparishad',
-    branchFacebook: '',
   },
   brand: {
     // BASE_URL keeps the logo working under GitHub Pages' /<repo>/ path

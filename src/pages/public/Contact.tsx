@@ -65,7 +65,7 @@ export function ContactPage() {
             <div className="card p-5">
               <p className="text-sm text-slate-600">{t('contact.formNote')}</p>
               <a
-                href={site.links.officialFacebook}
+                href={site.links.branchFacebook || site.links.officialFacebook}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-800 hover:underline"
