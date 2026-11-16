@@ -39,6 +39,7 @@ import {
 } from '@/pages/admin/AdminScreens';
 import { AdminApplicationDetailPage } from '@/pages/admin/ApplicationDetail';
 import { AdminAttendance } from '@/pages/admin/AdminAttendance';
+import { VerifyEmailPage } from '@/pages/auth/VerifyEmail';
 
 export default function App() {
   return (
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route
               path="/pending"
               element={
