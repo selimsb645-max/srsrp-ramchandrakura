@@ -10,6 +10,16 @@ import { logAudit } from './auditService';
 import type { Activity, AuditLog, CommitteeMember, ContactMessage, EventItem, GalleryItem, Notice, Role } from '@/types';
 import type { ListResult } from './publicData';
 
+/** Firestore Timestamp (or a plain string) → ISO string the date formatter understands. */
+function toIsoString(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  const maybe = value as { toDate?: () => Date; seconds?: number };
+  if (typeof maybe.toDate === 'function') return maybe.toDate().toISOString();
+  if (typeof maybe.seconds === 'number') return new Date(maybe.seconds * 1000).toISOString();
+  return null;
+}
+
 async function readAll<T>(name: string, orderField: string, max = 200, direction: 'asc' | 'desc' = 'desc'): Promise<ListResult<T>> {
   if (!isFirebaseConfigured || !db) return { data: [], configured: false, error: null };
   try {
@@ -24,7 +34,16 @@ async function readAll<T>(name: string, orderField: string, max = 200, direction
 export const adminGetNotices = () => readAll<Notice>(COLLECTIONS.notices, 'date');
 export const adminGetActivities = () => readAll<Activity>(COLLECTIONS.activities, 'date');
 export const adminGetEvents = () => readAll<EventItem>(COLLECTIONS.events, 'startAt');
-export const adminGetMessages = () => readAll<ContactMessage>(COLLECTIONS.contactMessages, 'createdAt');
+export const adminGetMessages = async (): Promise<ListResult<ContactMessage>> => {
+  const result = await readAll<ContactMessage>(COLLECTIONS.contactMessages, 'createdAt');
+  return {
+    ...result,
+    data: result.data.map((message) => ({
+      ...message,
+      createdAt: toIsoString(message.createdAt),
+    })) as unknown as ContactMessage[],
+  };
+};
 export const adminGetAuditLogs = () => readAll<AuditLog>(COLLECTIONS.auditLogs, 'createdAt');
 export const adminGetGallery = () => readAll<GalleryItem>(COLLECTIONS.gallery, 'createdAt');
 

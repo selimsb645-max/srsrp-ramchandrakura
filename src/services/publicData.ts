@@ -78,7 +78,9 @@ export function getCommittee(): Promise<ListResult<CommitteeMember>> {
       'order',
       100,
     );
-    return (data as CommitteeMember[]).sort((a, b) => a.order - b.order);
+    return (data as CommitteeMember[])
+      .filter((member) => member.verification === 'verified')
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   });
 }
 
