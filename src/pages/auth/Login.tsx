@@ -51,8 +51,10 @@ export function LoginPage() {
 
   return (
     <section className="flex min-h-dvh items-center bg-gradient-to-br from-slate-50 via-white to-brand-50 py-10">
-      <BackButton />
       <Container className="max-w-md">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="mb-6 flex justify-center">
           <Logo />
         </div>

@@ -1,22 +1,17 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '@/i18n';
+import { Container } from '@/components/ui/Container';
 import { cn } from '@/lib/utils';
 
 /**
  * One back button for every page, so a visitor is never stuck on a deep page.
  *
- * It walks the browser history when there is something to walk back to, and otherwise
- * falls back to the page's own section (/admin, /portal) or the home page — so a link
- * opened straight from WhatsApp still leads somewhere sensible. The home page and print
- * output never show it.
+ * It sits at the top of the page (never floating over the content or the footer) and walks
+ * the browser history when there is something to walk back to. Without history — a deep link
+ * opened straight from WhatsApp — it falls back to the page's own section (/admin, /portal)
+ * or the home page. The home page and print output never show it.
  */
-export function BackButton({
-  variant = 'floating',
-  className,
-}: {
-  variant?: 'floating' | 'inline';
-  className?: string;
-}) {
+export function BackButton({ className }: { className?: string }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { t } = useI18n();
@@ -46,11 +41,8 @@ export function BackButton({
       onClick={goBack}
       aria-label={t('common.back')}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full text-sm font-semibold text-brand-900 transition print:hidden',
-        'bg-white ring-1 ring-slate-200 shadow-soft hover:bg-brand-50 hover:ring-brand-200',
-        variant === 'floating'
-          ? 'fixed bottom-5 left-4 z-30 px-4 py-2.5 sm:bottom-6 sm:left-6'
-          : 'px-3.5 py-2',
+        'inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-brand-900',
+        'ring-1 ring-slate-200 shadow-soft transition hover:bg-brand-50 hover:ring-brand-200 print:hidden',
         className,
       )}
     >
@@ -59,5 +51,21 @@ export function BackButton({
       </svg>
       {t('common.back')}
     </button>
+  );
+}
+
+/**
+ * Thin strip under the public header that holds the back button, so every public page
+ * carries it in the same predictable place. Hidden on the home page.
+ */
+export function BackBar() {
+  const { pathname } = useLocation();
+  if (pathname === '/') return null;
+  return (
+    <div className="border-b border-slate-100 bg-white print:hidden">
+      <Container className="flex items-center py-2">
+        <BackButton />
+      </Container>
+    </div>
   );
 }

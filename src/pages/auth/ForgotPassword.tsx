@@ -28,8 +28,10 @@ export function ForgotPasswordPage() {
 
   return (
     <section className="flex min-h-dvh items-center bg-slate-50 py-10">
-      <BackButton />
       <Container className="max-w-md">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="card p-6 sm:p-8">
           <h1 className="font-display text-2xl font-bold text-brand-950">{t('auth.resetTitle')}</h1>
           <p className="mt-1 text-sm text-slate-600">{t('auth.resetLead')}</p>

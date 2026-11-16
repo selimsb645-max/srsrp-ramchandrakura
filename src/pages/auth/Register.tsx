@@ -102,8 +102,10 @@ export function RegisterPage() {
 
   return (
     <section className="min-h-dvh bg-gradient-to-br from-slate-50 via-white to-brand-50 py-10">
-      <BackButton />
       <Container className="max-w-2xl">
+        <div className="mb-4">
+          <BackButton />
+        </div>
         <div className="mb-6 flex justify-center">
           <Logo />
         </div>
