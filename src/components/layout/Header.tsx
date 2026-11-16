@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { publicNav } from '@/config/site';
+import { publicNav, site } from '@/config/site';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -10,7 +10,7 @@ import { Logo } from '@/components/shared/Logo';
 import { LanguageToggle } from '@/components/shared/LanguageToggle';
 
 export function Header() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user, isAdmin, signOutUser } = useAuth();
   const [open, setOpen] = useState(false);
   const location = useLocation();
@@ -30,6 +30,16 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+      <div className="bg-brand-950 text-white">
+        <Container className="flex min-h-[26px] items-center justify-between gap-3 py-1">
+          <p className="truncate text-[10.5px] font-medium tracking-wide text-brand-100 sm:text-[11.5px]">
+            {lang === 'bn' ? site.organization.taglineBn : site.organization.taglineEn}
+          </p>
+          <p className="hidden shrink-0 text-[10.5px] font-semibold tracking-wide text-leaf-200 sm:block sm:text-[11.5px]">
+            {lang === 'bn' ? site.organization.approvedByBn : site.organization.approvedByEn}
+          </p>
+        </Container>
+      </div>
       <Container className="flex h-16 items-center justify-between gap-4 sm:h-[72px]">
         <Logo />
 

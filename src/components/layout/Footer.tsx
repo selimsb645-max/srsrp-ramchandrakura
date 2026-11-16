@@ -18,7 +18,13 @@ export function Footer() {
           <div className="rounded-2xl bg-white/95 p-3">
             <Logo />
           </div>
-          <p className="mt-4 text-sm leading-relaxed text-brand-200">{t('footer.builtNote')}</p>
+          <p className="mt-4 text-[13px] font-semibold leading-relaxed text-leaf-200">
+            {lang === 'bn' ? site.organization.natureBn : site.organization.natureEn}
+          </p>
+          <p className="mt-1 text-[12px] leading-relaxed text-brand-300">
+            {lang === 'bn' ? site.organization.approvedByBn : site.organization.approvedByEn}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-brand-200">{t('footer.builtNote')}</p>
         </div>
 
         <div>

@@ -17,6 +17,13 @@ export const site = {
     parentEn: 'Nalitabari Upazila, Sherpur, Mymensingh',
     foundedBn: 'প্রতিষ্ঠা: ২০ ফেব্রুয়ারি ১৯৮৯',
     foundedEn: 'Founded: 20 February 1989',
+    /** Lines taken verbatim from the branch's official letterhead (press release). */
+    taglineBn: 'মহান মুক্তিযুদ্ধের চেতনায় গড়ে উঠুক আগামী প্রজন্ম',
+    taglineEn: 'May the next generation grow in the spirit of the Liberation War',
+    approvedByBn: 'বঙ্গবন্ধু মেমোরিয়াল ট্রাস্ট কর্তৃক অনুমোদিত',
+    approvedByEn: 'Approved by Bangabandhu Memorial Trust',
+    natureBn: 'সামাজিক, সাংস্কৃতিক ও ক্রীড়া সংগঠন',
+    natureEn: 'A social, cultural and sports organisation',
   },
   /** Replace every «…» before launch. */
   contact: {
@@ -32,7 +39,8 @@ export const site = {
   },
   brand: {
     // BASE_URL keeps the logo working under GitHub Pages' /<repo>/ path
-    logo: `${import.meta.env.BASE_URL}brand/logo-official.jpg`,
+    // Official Parishad seal, taken from the branch's letterhead
+    logo: `${import.meta.env.BASE_URL}brand/logo-parishad.png`,
     logoAltBn: 'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — অফিসিয়াল লোগো',
     logoAltEn: 'Sheikh Russel Jatiya Shishu-Kishore Parishad — official logo',
   },
