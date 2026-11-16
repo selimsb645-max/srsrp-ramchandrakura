@@ -141,28 +141,36 @@ export function AdminApplications() {
           >
             {t(`application.status.${application.status}`)}
           </Badge>,
-          application.status === 'pending' ? (
-            <span className="flex gap-1.5">
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busyId === application.id}
-                onClick={() => void decide(application.id, 'approve', application.fullName)}
-              >
-                {t('admin.approve')}
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                disabled={busyId === application.id}
-                onClick={() => void decide(application.id, 'reject', application.fullName)}
-              >
-                {t('admin.reject')}
-              </Button>
-            </span>
-          ) : (
-            <span className="text-xs text-slate-400">{application.reviewedBy ? '✓' : '—'}</span>
-          ),
+          <span className="flex items-center gap-1.5">
+            <Link
+              to={`/admin/applications/${application.id}`}
+              className="text-xs font-semibold text-brand-800 hover:underline"
+            >
+              বিস্তারিত
+            </Link>
+            {application.status === 'pending' ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busyId === application.id}
+                  onClick={() => void decide(application.id, 'approve', application.fullName)}
+                >
+                  {t('admin.approve')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={busyId === application.id}
+                  onClick={() => void decide(application.id, 'reject', application.fullName)}
+                >
+                  {t('admin.reject')}
+                </Button>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400">{application.reviewedBy ? '✓' : '—'}</span>
+            )}
+          </span>,
         ])}
       />
     </div>

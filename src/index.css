@@ -49,3 +49,33 @@
     @apply animate-pulse rounded-lg bg-slate-200/70;
   }
 }
+
+/* ---------- print: admin application sheet ---------- */
+@media print {
+  /* only the sheet prints, not the admin chrome */
+  .no-print,
+  nav,
+  aside,
+  header.app-header,
+  footer {
+    display: none !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  a {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

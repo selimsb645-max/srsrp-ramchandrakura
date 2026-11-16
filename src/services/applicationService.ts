@@ -9,6 +9,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -62,6 +63,14 @@ export async function submitApplication(input: ApplicationInput): Promise<void> 
     if (value) payload[key] = value;
   }
   await addDoc(collection(firestore, COLLECTIONS.membershipApplications), payload);
+}
+
+/** One application, for the printable detail sheet (admin + super_admin only, per rules). */
+export async function getApplication(id: string): Promise<MembershipApplication | null> {
+  const firestore = requireDb();
+  const snapshot = await getDoc(doc(firestore, COLLECTIONS.membershipApplications, id));
+  if (!snapshot.exists()) return null;
+  return { ...(snapshot.data() as MembershipApplication), id: snapshot.id };
 }
 
 export async function listApplications(): Promise<ListResult<MembershipApplication>> {

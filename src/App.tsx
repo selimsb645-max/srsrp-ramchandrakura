@@ -33,6 +33,7 @@ import {
   AdminOverview,
   AdminUsers,
 } from '@/pages/admin/AdminScreens';
+import { AdminApplicationDetailPage } from '@/pages/admin/ApplicationDetail';
 
 export default function App() {
   return (
@@ -103,6 +104,14 @@ export default function App() {
                 element={
                   <StaffRoute roles={['admin', 'super_admin']}>
                     <AdminApplications />
+                  </StaffRoute>
+                }
+              />
+              <Route
+                path="/admin/applications/:id"
+                element={
+                  <StaffRoute roles={['admin', 'super_admin']}>
+                    <AdminApplicationDetailPage />
                   </StaffRoute>
                 }
               />
