@@ -39,8 +39,8 @@ export const site = {
   },
   brand: {
     // BASE_URL keeps the logo working under GitHub Pages' /<repo>/ path
-    // Official Parishad seal, taken from the branch's letterhead
-    logo: `${import.meta.env.BASE_URL}brand/logo-parishad.png`,
+    // Official emblem of this branch (৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা)
+    logo: `${import.meta.env.BASE_URL}brand/logo-union.png`,
     logoAltBn: 'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — অফিসিয়াল লোগো',
     logoAltEn: 'Sheikh Russel Jatiya Shishu-Kishore Parishad — official logo',
   },
