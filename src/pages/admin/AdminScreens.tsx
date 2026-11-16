@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
@@ -15,7 +15,7 @@ import {
   deleteMessage,
   setMessageHandled,
 } from '@/services/adminData';
-import { listAllUsers, setUserRole, setUserStatus } from '@/services/userService';
+import { listAllUsers, nextMemberCode, setMemberCode, setUserRole, setUserStatus } from '@/services/userService';
 import { listApplications, reviewApplication } from '@/services/applicationService';
 import { documentUrl } from '@/services/documentService';
 import { deleteContent, saveContent, setContentPublished, type FormValues } from '@/services/contentService';
@@ -223,6 +223,65 @@ export function AdminApplications() {
 }
 
 /** Account list with status controls; role changes are super_admin only. */
+
+/**
+ * সদস্য নম্বর সেল — কমিটি সরাসরি লিখতে পারে, অথবা "তৈরি" চেপে পরবর্তী নম্বর নিতে পারে।
+ * অনুমোদনের সময় নম্বর স্বয়ংক্রিয়ভাবেও দেওয়া হয়, তাই এটি সাধারণত শুধু সংশোধনের জন্য।
+ */
+function MemberCodeCell({ member, onSaved }: { member: UserProfile; onSaved: (message: string) => void }) {
+  const [value, setValue] = useState(member.memberCode ?? '');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setValue(member.memberCode ?? '');
+  }, [member.memberCode]);
+
+  async function save() {
+    if (busy || value.trim().toUpperCase() === (member.memberCode ?? '')) return;
+    setBusy(true);
+    try {
+      await setMemberCode(member.id, value);
+      onSaved(`${member.nameBn}: সদস্য নম্বর সংরক্ষণ হয়েছে।`);
+    } catch {
+      onSaved('নম্বরটি নেওয়া হয়নি — ৪ থেকে ২৪ অক্ষর, শুধু A–Z, 0–9 ও হাইফেন ব্যবহার করুন।');
+      setValue(member.memberCode ?? '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generate() {
+    setBusy(true);
+    try {
+      const code = await nextMemberCode();
+      await setMemberCode(member.id, code);
+      setValue(code);
+      onSaved(`${member.nameBn}: নতুন নম্বর ${code}`);
+    } catch (err) {
+      onSaved((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        className="w-32 rounded-lg border border-slate-300 px-2 py-1 font-mono text-[11px]"
+        value={value}
+        placeholder="SRC-RK-26-0001"
+        disabled={busy}
+        onChange={(event) => setValue(event.target.value.toUpperCase())}
+        onBlur={() => void save()}
+        aria-label="সদস্য নম্বর"
+      />
+      <button type="button" className="text-[11px] font-semibold text-brand-700 hover:underline" disabled={busy} onClick={() => void generate()}>
+        তৈরি
+      </button>
+    </div>
+  );
+}
+
 export function AdminUsers() {
   const { t, lang } = useI18n();
   const { user, role, isSuperAdmin } = useAuth();
@@ -266,11 +325,12 @@ export function AdminUsers() {
       <AdminTable
         title={t('admin.tab.members')}
         description={t('members.privacy')}
-        headers={['নাম', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা', '']}
+        headers={['নাম', 'সদস্য নম্বর', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা', '']}
         loading={loading}
         error={error}
         rows={data.map((member) => [
           member.nameBn,
+          <MemberCodeCell member={member} onSaved={setNote} />,
           member.ward ?? '—',
           <Badge tone={STATUS_TONES[member.status]}>{t(`member.status.${member.status}`)}</Badge>,
           isSuperAdmin ? (

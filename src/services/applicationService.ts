@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured, requireDb } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
+import { nextMemberCode } from './userService';
 import { logAudit } from './auditService';
 import type { MembershipApplication, Role } from '@/types';
 import type { ListResult } from './publicData';
@@ -116,12 +117,29 @@ export async function reviewApplication(
   });
 
   if (application.uid) {
+    // অনুমোদনের সময় সদস্য নম্বর না থাকলে একটি দিয়ে দেওয়া হয়, যাতে আইডি কার্ড ও
+    // সনদ সাথে সাথেই তৈরি করা যায়। নম্বরটি কমিটি পরে বদলাতে পারে।
+    let memberCode: string | undefined;
+    if (decision === 'approve') {
+      const accountRef = doc(firestore, COLLECTIONS.users, application.uid);
+      const accountSnap = await getDoc(accountRef);
+      const existing = (accountSnap.data() as { memberCode?: string } | undefined)?.memberCode;
+      if (!existing) {
+        try {
+          memberCode = await nextMemberCode();
+        } catch {
+          memberCode = undefined;
+        }
+      }
+    }
+
     await updateDoc(doc(firestore, COLLECTIONS.users, application.uid), {
       status: decision === 'approve' ? 'active' : 'suspended',
       published: decision === 'approve',
       approvedBy: actor.uid,
       approvedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      ...(memberCode ? { memberCode } : {}),
     });
   }
 

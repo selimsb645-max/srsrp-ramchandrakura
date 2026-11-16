@@ -49,6 +49,17 @@ export interface CommitteeMember extends Timestamped {
   verification: 'pending' | 'verified';
 }
 
+/** Event RSVP. Stored inside the member's own `users/{uid}` document. */
+export type RsvpStatus = 'going' | 'not_going';
+
+/** Attendance stamp for one event, also inside `users/{uid}`. */
+export interface AttendanceStamp {
+  at: string;
+  /** self = member checked in from the portal, admin = recorded by the committee */
+  method: 'self' | 'admin';
+  by?: string;
+}
+
 /** `users/{uid}` — document id equals the Firebase Auth uid. */
 export interface UserProfile extends Timestamped {
   uid: string;
@@ -66,6 +77,10 @@ export interface UserProfile extends Timestamped {
   published: boolean;
   approvedBy?: string;
   approvedAt?: Date | null;
+  /** eventId → the member's own answer */
+  rsvps?: Record<string, RsvpStatus>;
+  /** eventId → attendance stamp; absence means the member did not attend */
+  attendance?: Record<string, AttendanceStamp>;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 }

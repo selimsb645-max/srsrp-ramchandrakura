@@ -22,6 +22,9 @@ import { ForgotPasswordPage } from '@/pages/auth/ForgotPassword';
 import { PendingApprovalPage } from '@/pages/member/PendingApproval';
 import { MemberDashboardPage } from '@/pages/member/Dashboard';
 import { MemberProfilePage } from '@/pages/member/Profile';
+import { MemberIdCardPage } from '@/pages/member/IdCard';
+import { MemberCertificatePage } from '@/pages/member/Certificate';
+import { MemberDirectoryPage } from '@/pages/member/Directory';
 import {
   AdminActivities,
   AdminApplications,
@@ -35,6 +38,7 @@ import {
   AdminUsers,
 } from '@/pages/admin/AdminScreens';
 import { AdminApplicationDetailPage } from '@/pages/admin/ApplicationDetail';
+import { AdminAttendance } from '@/pages/admin/AdminAttendance';
 
 export default function App() {
   return (
@@ -78,6 +82,9 @@ export default function App() {
             >
               <Route path="/portal" element={<MemberDashboardPage />} />
               <Route path="/portal/profile" element={<MemberProfilePage />} />
+              <Route path="/portal/card" element={<MemberIdCardPage />} />
+              <Route path="/portal/certificate" element={<MemberCertificatePage />} />
+              <Route path="/portal/directory" element={<MemberDirectoryPage />} />
             </Route>
 
             <Route
@@ -91,6 +98,14 @@ export default function App() {
               <Route path="/admin/activities" element={<AdminActivities />} />
               <Route path="/admin/notices" element={<AdminNotices />} />
               <Route path="/admin/events" element={<AdminEvents />} />
+              <Route
+                path="/admin/attendance"
+                element={
+                  <StaffRoute roles={['admin', 'super_admin']}>
+                    <AdminAttendance />
+                  </StaffRoute>
+                }
+              />
               <Route path="/admin/committee" element={<AdminCommittee />} />
               <Route path="/admin/gallery" element={<AdminGallery />} />
               <Route

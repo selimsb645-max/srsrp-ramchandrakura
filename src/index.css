@@ -75,7 +75,13 @@
     text-decoration: none !important;
   }
 
+  /* আইডি কার্ড ও সনদ: ছাপার সময় ছায়া/বর্ডার বাড়তি যেন না আসে */
+  .print-sheet {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
   @page {
-    margin: 14mm;
+    margin: 12mm;
   }
 }

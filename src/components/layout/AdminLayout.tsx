@@ -12,6 +12,7 @@ const CONTENT_TABS: Tab[] = [
   { to: '/admin/activities', labelKey: 'admin.tab.activities' },
   { to: '/admin/notices', labelKey: 'admin.tab.notices' },
   { to: '/admin/events', labelKey: 'admin.tab.events' },
+  { to: '/admin/attendance', labelKey: 'admin.tab.attendance' },
   { to: '/admin/committee', labelKey: 'admin.tab.committee' },
   { to: '/admin/gallery', labelKey: 'admin.tab.gallery' },
 ];
