@@ -20,9 +20,19 @@
   "status": "pending | active | suspended",
   "published": true,
   "approvedBy": "<admin uid>",
-  "approvedAt": "<timestamp>"
+  "approvedAt": "<timestamp>",
+
+  "designationBn": "সাংগঠনিক পদবি — যেমন সদস্য / সাংগঠনিক সম্পাদক",
+  "joinedAt": "<timestamp — যোগদানের তারিখ>",
+  "cardIssuedAt": "<timestamp — আইডি কার্ড ইস্যুর তারিখ>",
+  "cardExpiresAt": "<timestamp — কার্ডের মেয়াদ শেষ>"
 }
 ```
+
+* আইডি কার্ডের চারটি ঘর (`designationBn`, `joinedAt`, `cardIssuedAt`, `cardExpiresAt`) কেবল
+  admin/super_admin বদলাতে পারে; সদস্য নিজের ডকুমেন্টেও এগুলো লিখতে পারবে না (রুলস বন্ধ করে রাখে)।
+* `designationBn` খালি থাকলে কার্ডে "সদস্য" ছাপা হয়। `cardExpiresAt` না থাকলে
+  `cardIssuedAt` (বা `joinedAt`) + `site.membership.cardTermYears` (এখন ২ বছর) ধরা হয়।
 
 * `role` ও `status` কেবল অনুমোদিত ভূমিকা বদলাতে পারে (super_admin) বা অনুমোদন দিতে পারে (admin)।
   সদস্য নিজে কখনোই বদলাতে পারবে না — রুলস সরাসরি প্রত্যাখ্যান করে।

@@ -109,6 +109,7 @@ export function VerifyPage() {
               {[
                 { label: t('verify.name'), value: member.name },
                 { label: t('verify.memberCode'), value: member.memberCode },
+                { label: t('verify.designation'), value: member.designation },
                 { label: t('verify.ward'), value: member.ward },
                 { label: t('verify.village'), value: member.village },
                 {

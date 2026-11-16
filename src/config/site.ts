@@ -46,6 +46,15 @@ export const site = {
     logoAltBn: 'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ — অফিসিয়াল লোগো',
     logoAltEn: 'Sheikh Russel Jatiya Shishu-Kishore Parishad — official logo',
   },
+  /**
+   * সদস্যপদ ও আইডি কার্ডের নিয়মাবলি।
+   * কার্ডের মেয়াদ শেষের তারিখ = ইস্যুর তারিখ + cardTermYears।
+   * কমিটি আলাদা তারিখ দিলে (users/{uid}.cardExpiresAt) সেটাই দেখানো হয়।
+   */
+  membership: {
+    /** কার্ড কত বছরের জন্য বৈধ — কমিটি অন্য মেয়াদ বললে শুধু এই সংখ্যা বদলাতে হবে। */
+    cardTermYears: 2,
+  },
   /** Feature flags keep unfinished phases switched off instead of faking data. */
   features: {
     memberRegistration: true,

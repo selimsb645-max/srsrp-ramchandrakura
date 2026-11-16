@@ -15,7 +15,14 @@ import {
   deleteMessage,
   setMessageHandled,
 } from '@/services/adminData';
-import { listAllUsers, nextMemberCode, setMemberCode, setUserRole, setUserStatus } from '@/services/userService';
+import {
+  listAllUsers,
+  nextMemberCode,
+  setMemberCode,
+  setMemberDesignation,
+  setUserRole,
+  setUserStatus,
+} from '@/services/userService';
 import { listApplications, reviewApplication } from '@/services/applicationService';
 import { sendApprovalMail } from '@/services/mailService';
 import { documentUrl } from '@/services/documentService';
@@ -293,6 +300,45 @@ function MemberCodeCell({ member, onSaved }: { member: UserProfile; onSaved: (me
   );
 }
 
+/**
+ * সাংগঠনিক পদবি সেল — কমিটি এখানে লিখে দেয় (যেমন সাংগঠনিক সম্পাদক, সদস্য)।
+ * আইডি কার্ডের সামনের অংশে ঠিক এই লেখাটাই ছাপা হয়; খালি রাখলে "সদস্য" ধরা হয়।
+ */
+function DesignationCell({ member, onSaved }: { member: UserProfile; onSaved: (message: string) => void }) {
+  const [value, setValue] = useState(member.designationBn ?? '');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setValue(member.designationBn ?? '');
+  }, [member.designationBn]);
+
+  async function save() {
+    if (busy || value.trim() === (member.designationBn ?? '')) return;
+    setBusy(true);
+    try {
+      await setMemberDesignation(member.id, value);
+      onSaved(`${member.nameBn}: পদবি সংরক্ষণ হয়েছে।`);
+    } catch {
+      onSaved('পদবি সংরক্ষণ করা যায়নি — কমিটির অ্যাকাউন্ট সক্রিয় কিনা দেখুন।');
+      setValue(member.designationBn ?? '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <input
+      className="w-28 rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
+      value={value}
+      placeholder="সদস্য"
+      disabled={busy}
+      aria-label="সাংগঠনিক পদবি"
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => void save()}
+    />
+  );
+}
+
 export function AdminUsers() {
   const { t, lang } = useI18n();
   const { user, role, isSuperAdmin } = useAuth();
@@ -336,12 +382,13 @@ export function AdminUsers() {
       <AdminTable
         title={t('admin.tab.members')}
         description={t('members.privacy')}
-        headers={['নাম', 'সদস্য নম্বর', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা', '']}
+        headers={['নাম', 'সদস্য নম্বর', 'পদবি', 'ওয়ার্ড', 'অবস্থা', 'ভূমিকা', '']}
         loading={loading}
         error={error}
         rows={data.map((member) => [
           member.nameBn,
           <MemberCodeCell member={member} onSaved={setNote} />,
+          <DesignationCell member={member} onSaved={setNote} />,
           member.ward ?? '—',
           <Badge tone={STATUS_TONES[member.status]}>{t(`member.status.${member.status}`)}</Badge>,
           isSuperAdmin ? (

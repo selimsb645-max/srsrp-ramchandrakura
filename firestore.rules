@@ -72,10 +72,14 @@ service cloud.firestore {
         || (isAdmin()
             && request.resource.data.uid == resource.data.uid
             && !changed(['role', 'uid', 'createdAt']))
-        // member: own profile fields only
+        // member: own profile fields only — আইডি কার্ডের তথ্য (পদবি, কার্ডের তারিখ)
+        // কমিটি ঠিক করে, তাই সদস্য নিজে সেগুলো বদলাতে পারে না।
         || (signedIn()
             && request.auth.uid == uid
-            && !changed(['role', 'status', 'published', 'memberCode', 'approvedBy', 'approvedAt', 'uid', 'createdAt']));
+            && !changed([
+              'role', 'status', 'published', 'memberCode', 'approvedBy', 'approvedAt', 'uid', 'createdAt',
+              'designationBn', 'joinedAt', 'cardIssuedAt', 'cardExpiresAt'
+            ]));
 
       allow delete: if isSuperAdmin();
 

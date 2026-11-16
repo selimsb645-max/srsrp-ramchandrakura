@@ -16,6 +16,7 @@ export interface VerifiedMember {
   memberCode: string;
   ward: string;
   village: string;
+  designation: string;
   status: string;
   joinedAt: Date | null;
 }
@@ -72,6 +73,7 @@ export async function verifyMemberCode(rawCode: string): Promise<VerifyOutcome> 
       memberCode: String(data.memberCode ?? code),
       ward: String(data.ward ?? ''),
       village: String(data.village ?? ''),
+      designation: String(data.designationBn ?? ''),
       status: String(data.status ?? ''),
       joinedAt: toDate(data.approvedAt ?? data.createdAt),
     };

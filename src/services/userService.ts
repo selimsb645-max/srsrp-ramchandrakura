@@ -50,6 +50,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     createdAt: toDate(raw.createdAt),
     updatedAt: toDate(raw.updatedAt),
     approvedAt: toDate(raw.approvedAt),
+    joinedAt: toDate(raw.joinedAt),
+    cardIssuedAt: toDate(raw.cardIssuedAt),
+    cardExpiresAt: toDate(raw.cardExpiresAt),
   };
 }
 
@@ -91,6 +94,19 @@ export async function setMemberCode(uid: string, memberCode: string): Promise<vo
   if (clean !== '' && !/^[A-Z0-9-]{4,24}$/.test(clean)) throw new Error('BAD_CODE');
   await updateDoc(doc(firestore, COLLECTIONS.users, uid), {
     memberCode: clean,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * সাংগঠনিক পদবি — শুধু কমিটি/অ্যাডমিন দিতে পারে (firestore.rules-এ সদস্যের জন্য বন্ধ)।
+ * খালি পাঠালে কার্ডে ডিফল্ট "সদস্য" দেখাবে।
+ */
+export async function setMemberDesignation(uid: string, designationBn: string): Promise<void> {
+  const firestore = requireDb();
+  const clean = designationBn.trim().slice(0, 60);
+  await updateDoc(doc(firestore, COLLECTIONS.users, uid), {
+    designationBn: clean,
     updatedAt: serverTimestamp(),
   });
 }

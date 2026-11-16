@@ -71,6 +71,14 @@ export interface UserProfile extends Timestamped {
   school?: string;
   className?: string;
   photoUrl?: string;
+  /** সাংগঠনিক পদবি (যেমন সদস্য, সাংগঠনিক সম্পাদক) — কমিটি নির্ধারণ করে, কার্ডে ছাপা হয় */
+  designationBn?: string;
+  /** যোগদানের তারিখ; না থাকলে approvedAt ধরা হয় */
+  joinedAt?: Date | null;
+  /** কার্ড ইস্যুর তারিখ; না থাকলে যোগদানের তারিখ */
+  cardIssuedAt?: Date | null;
+  /** কার্ডের মেয়াদ শেষের তারিখ; না থাকলে ইস্যু + site.membership.cardTermYears */
+  cardExpiresAt?: Date | null;
   role: Role;
   status: AccountStatus;
   /** publishes the public-safe directory entry (never contact details) */
