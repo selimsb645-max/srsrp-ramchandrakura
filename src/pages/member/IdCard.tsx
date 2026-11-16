@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { formatDate } from '@/lib/utils';
+import { verifyUrlFor } from '@/lib/verifyUrl';
 import { Button } from '@/components/ui/Button';
 import { Placeholder } from '@/components/ui/Placeholder';
 
@@ -23,7 +24,7 @@ export function MemberIdCardPage() {
    * code falls back to plain text so a half-issued card is never mistaken for a verified one.
    */
   const qrPayload = code
-    ? `${window.location.origin}${import.meta.env.BASE_URL}verify/${encodeURIComponent(code)}`
+    ? verifyUrlFor(code)
     : profile
       ? [
           'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ',

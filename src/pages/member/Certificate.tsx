@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { formatDate } from '@/lib/utils';
+import { verifyUrlFor } from '@/lib/verifyUrl';
 import { Button } from '@/components/ui/Button';
 import { Placeholder } from '@/components/ui/Placeholder';
 
@@ -89,6 +90,11 @@ export function MemberCertificatePage() {
         <p className="mt-[7mm] border-t border-dashed border-slate-200 pt-[3mm] text-[2.4mm] leading-tight text-slate-400">
           {t('member.cert.note')}
         </p>
+        {profile.memberCode && (
+          <p className="mt-[1.5mm] text-[2.3mm] leading-tight text-slate-500">
+            যাচাই / Verify: {verifyUrlFor(profile.memberCode)}
+          </p>
+        )}
       </div>
     </div>
   );
