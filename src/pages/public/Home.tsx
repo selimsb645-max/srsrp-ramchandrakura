@@ -1,9 +1,18 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { site } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { formatDate, toBnDigits } from '@/lib/utils';
 import { useAsyncList } from '@/hooks/useAsyncList';
-import { getActivities, getCommittee, getEvents, getMembers, getNotices } from '@/services/publicData';
+import {
+  getActivities,
+  getCommittee,
+  getEvents,
+  getMembers,
+  getNotices,
+  getPublicStats,
+  type PublicStats,
+} from '@/services/publicData';
 import { Container } from '@/components/ui/Container';
 import { ButtonLink } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -26,6 +35,17 @@ export function HomePage() {
   const notices = useAsyncList(getNotices);
   const committee = useAsyncList(getCommittee);
   const members = useAsyncList(getMembers);
+  const [stats, setStats] = useState<PublicStats | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getPublicStats().then((value) => {
+      if (alive) setStats(value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const now = new Date();
   const upcoming = events.data
@@ -33,11 +53,16 @@ export function HomePage() {
     .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
     .slice(0, 3);
 
+  // Public counters come from settings/publicStats (written by the scheduled job);
+  // the published list length is the floor, so the badge never under-reports.
+  const count = (fromDoc: number | undefined, listLength: number) =>
+    Math.max(fromDoc ?? 0, listLength);
+
   const statItems = [
-    { label: t('stats.members'), value: members.data.length },
-    { label: t('stats.activities'), value: activities.data.length },
-    { label: t('stats.events'), value: events.data.length },
-    { label: t('stats.notices'), value: notices.data.length },
+    { label: t('stats.members'), value: count(stats?.memberCount, members.data.length) },
+    { label: t('stats.activities'), value: count(stats?.activityCount, activities.data.length) },
+    { label: t('stats.events'), value: count(stats?.eventCount, events.data.length) },
+    { label: t('stats.notices'), value: count(stats?.noticeCount, notices.data.length) },
   ];
 
   return (

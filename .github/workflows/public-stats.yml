@@ -1,0 +1,33 @@
+name: Public stats
+
+# Keeps `settings/publicStats` (the counters on the home page) accurate.
+# Needed because the browser cannot count pending registrations: the users rule
+# only lets an anonymous list through when the query pins published == true AND
+# role == 'member', so "how many registered" is only visible to the Admin SDK.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: public-stats
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install auth library
+        run: pip install --quiet google-auth
+
+      - name: Count and write settings/publicStats
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+        run: python3 scripts/public-stats.py

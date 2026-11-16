@@ -9,7 +9,7 @@
  * Nothing personal is ever read here: contact details live in `users/{uid}/private/contact`,
  * which these loaders never touch.
  */
-import { collection, getDocs, limit, query, where, type Firestore } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, where, type Firestore } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { COLLECTIONS } from './collections';
 import type { Activity, CommitteeMember, EventItem, GalleryItem, Notice, UserProfile } from '@/types';
@@ -91,7 +91,12 @@ export function getCommittee(): Promise<ListResult<CommitteeMember>> {
 export function getMembers(): Promise<ListResult<UserProfile>> {
   return wrap(async () => {
     const snapshot = await getDocs(
-      query(collection(db!, COLLECTIONS.users), where('published', '==', true), limit(300)),
+      query(
+        collection(db!, COLLECTIONS.users),
+        where('published', '==', true),
+        where('role', '==', 'member'),
+        limit(300),
+      ),
     );
     return snapshot.docs
       .map((docSnap) => {
@@ -121,4 +126,46 @@ export function getNotices(): Promise<ListResult<Notice>> {
 
 export function getGallery(): Promise<ListResult<GalleryItem>> {
   return wrap(() => fetchPublished<GalleryItem & Record<string, unknown>>(db!, COLLECTIONS.gallery, 'createdAt'));
+}
+
+/**
+ * Public counters kept in `settings/publicStats` (settings is readable by everyone).
+ *
+ * The site cannot count members from the browser: the users rule is an OR and only
+ * lets an anonymous list through when the query pins published == true AND
+ * role == 'member', so it can never reach pending registrations. A scheduled GitHub
+ * Actions job (scripts/public-stats.py) writes the real totals here with the Admin SDK,
+ * and the home page prefers these numbers over the length of a public list.
+ */
+export interface PublicStats {
+  memberCount: number;
+  approvedCount: number;
+  activityCount: number;
+  eventCount: number;
+  noticeCount: number;
+  galleryCount: number;
+  updatedAt: string | null;
+}
+
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+export function getPublicStats(): Promise<PublicStats | null> {
+  if (!isFirebaseConfigured || !db) return Promise.resolve(null);
+  return getDoc(doc(db, 'settings', 'publicStats'))
+    .then((snap) => {
+      if (!snap.exists()) return null;
+      const raw = snap.data() as Record<string, unknown>;
+      return {
+        memberCount: num(raw.memberCount),
+        approvedCount: num(raw.approvedCount),
+        activityCount: num(raw.activityCount),
+        eventCount: num(raw.eventCount),
+        noticeCount: num(raw.noticeCount),
+        galleryCount: num(raw.galleryCount),
+        updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
+      } satisfies PublicStats;
+    })
+    .catch(() => null);
 }
