@@ -67,6 +67,11 @@ export function Footer() {
                 {t('members.joinTitle')}
               </Link>
             </li>
+            <li>
+              <Link to="/verify" className="text-brand-200 transition hover:text-white">
+                {t('verify.title')}
+              </Link>
+            </li>
           </ul>
         </div>
 

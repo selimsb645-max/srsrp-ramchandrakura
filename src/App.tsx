@@ -16,6 +16,7 @@ import { NoticesPage } from '@/pages/public/Notices';
 import { GalleryPage } from '@/pages/public/Gallery';
 import { ContactPage } from '@/pages/public/Contact';
 import { NotFoundPage } from '@/pages/public/NotFound';
+import { VerifyPage } from '@/pages/public/Verify';
 import { LoginPage } from '@/pages/auth/Login';
 import { RegisterPage } from '@/pages/auth/Register';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPassword';
@@ -59,6 +60,8 @@ export default function App() {
               <Route path="/notices" element={<NoticesPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/verify" element={<VerifyPage />} />
+              <Route path="/verify/:code" element={<VerifyPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
 

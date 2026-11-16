@@ -17,18 +17,23 @@ export function MemberIdCardPage() {
   const [qr, setQr] = useState<string>('');
 
   const code = profile?.memberCode ?? '';
-  const qrPayload = profile
-    ? [
-        'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ',
-        '৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা',
-        `সদস্য: ${profile.nameBn}`,
-        code ? `আইডি: ${code}` : '',
-        profile.ward ? `ওয়ার্ড: ${profile.ward}` : '',
-        profile.village ? `গ্রাম: ${profile.village}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n')
-    : '';
+  /**
+   * The QR opens the public /verify page, so anyone holding the card can check it against the
+   * association's own member list. Without a member number there is nothing to verify, and the
+   * code falls back to plain text so a half-issued card is never mistaken for a verified one.
+   */
+  const qrPayload = code
+    ? `${window.location.origin}${import.meta.env.BASE_URL}verify/${encodeURIComponent(code)}`
+    : profile
+      ? [
+          'শেখ রাসেল জাতীয় শিশু-কিশোর পরিষদ',
+          '৫নং রামচন্দ্রকুড়া ইউনিয়ন শাখা',
+          `সদস্য: ${profile.nameBn}`,
+          profile.ward ? `ওয়ার্ড: ${profile.ward}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
 
   useEffect(() => {
     if (!qrPayload) {
