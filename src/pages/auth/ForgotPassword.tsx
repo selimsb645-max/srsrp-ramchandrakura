@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { Container } from '@/components/ui/Container';
+import { BackButton } from '@/components/shared/BackButton';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Field';
 import { Spinner } from '@/components/ui/Spinner';
@@ -27,6 +28,7 @@ export function ForgotPasswordPage() {
 
   return (
     <section className="flex min-h-dvh items-center bg-slate-50 py-10">
+      <BackButton />
       <Container className="max-w-md">
         <div className="card p-6 sm:p-8">
           <h1 className="font-display text-2xl font-bold text-brand-950">{t('auth.resetTitle')}</h1>

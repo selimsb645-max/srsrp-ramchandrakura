@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { Container } from '@/components/ui/Container';
+import { BackButton } from '@/components/shared/BackButton';
 import { Button } from '@/components/ui/Button';
 import { Input, Label, Textarea } from '@/components/ui/Field';
 import { Spinner } from '@/components/ui/Spinner';
@@ -101,6 +102,7 @@ export function RegisterPage() {
 
   return (
     <section className="min-h-dvh bg-gradient-to-br from-slate-50 via-white to-brand-50 py-10">
+      <BackButton />
       <Container className="max-w-2xl">
         <div className="mb-6 flex justify-center">
           <Logo />

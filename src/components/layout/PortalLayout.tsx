@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Container } from '@/components/ui/Container';
 import { Logo } from '@/components/shared/Logo';
 import { LanguageToggle } from '@/components/shared/LanguageToggle';
+import { BackButton } from '@/components/shared/BackButton';
 
 interface PortalTab {
   to: string;
@@ -50,6 +51,9 @@ export function PortalLayout({ titleKey, tabs }: { titleKey: string; tabs: Porta
       </header>
 
       <Container className="py-6 sm:py-8">
+        <div className="mb-4">
+          <BackButton variant="inline" />
+        </div>
         <div className="mb-6 flex flex-col gap-1">
           <h1 className="font-display text-2xl font-bold text-brand-950 sm:text-3xl">{t(titleKey)}</h1>
           {profile && <p className="text-sm text-slate-500">{profile.nameBn}</p>}
