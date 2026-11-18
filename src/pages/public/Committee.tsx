@@ -32,19 +32,19 @@ function Avatar({ name, size, tone }: { name: string; size: string; tone: 'light
 
 function LeadCard({ member }: { member: CommitteeMember }) {
   return (
-    <article className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 via-brand-800 to-leaf-700 p-5 text-white shadow-soft sm:p-6">
-      <span className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10" />
-      <span className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-white/5" />
+    <article className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-950 via-brand-900 to-leaf-800 p-5 text-white shadow-soft sm:p-6">
+      <span className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/[0.07]" />
+      <span className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-white/[0.04]" />
       <div className="relative flex items-center gap-4">
         <Avatar name={member.nameBn} size="h-20 w-20 text-2xl" tone="dark" />
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+          <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[12px] font-bold leading-none text-brand-900 shadow-sm">
             {member.roleTitleBn || member.role}
-          </p>
-          <h2 className="mt-1 truncate font-display text-xl font-bold leading-tight sm:text-2xl">
+          </span>
+          <h2 className="mt-2 truncate font-display text-xl font-bold leading-tight text-white sm:text-2xl">
             {member.nameBn}
           </h2>
-          {member.termBn && <p className="mt-1 text-xs text-white/60">{member.termBn}</p>}
+          {member.termBn && <p className="mt-1.5 text-xs font-medium text-white/85">{member.termBn}</p>}
         </div>
       </div>
     </article>
