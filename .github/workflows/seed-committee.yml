@@ -1,0 +1,24 @@
+name: Seed committee (one-off)
+
+# একবারের কাজ: ১৮-১১-২০২৬-এর অনুমোদনপত্রের ৩৪ জনকে `committees` কালেকশনে যোগ করে।
+# কিছু মুছে না। সবাই published=false / verification=pending, মানে সাইটে এখনো দেখাবে না,
+# অ্যাডমিন প্যানেল থেকে মূল সই করা কাগজের সঙ্গে মিলিয়ে verified + published করতে হবে।
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --no-save firebase-admin
+      - name: Seed
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SA_JSON }}
+        run: node scripts/seed-committee.mjs
