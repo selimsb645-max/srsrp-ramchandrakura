@@ -30,6 +30,8 @@ export type CommitteeRole =
   | 'treasurer'
   | 'office_secretary'
   | 'publicity_secretary'
+  /** বিষয়ভিত্তিক সম্পাদক (আইন, ক্রীড়া, ধর্ম, তথ্যপ্রযুক্তি ইত্যাদি) */
+  | 'secretary'
   | 'member';
 
 /** A committee position (current or previous term). */
